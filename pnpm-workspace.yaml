@@ -1,0 +1,18 @@
+packages:
+  - shared
+  - backend
+  - frontend
+
+# Scripts de instalação só rodam para quem está liberado aqui.
+allowBuilds:
+  '@parcel/watcher': false
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  argon2: false
+  cpu-features: false
+  esbuild: true
+  lmdb: false
+  msgpackr-extract: false
+  prisma: true
+  protobufjs: false
+  ssh2: false
