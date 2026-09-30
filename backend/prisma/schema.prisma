@@ -1,0 +1,110 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  // Explícito para o client sair igual em qualquer ambiente: sem isso o gerador
+  // deduz o formato do tsconfig, que ainda não existe na etapa de install do Docker.
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  REQUESTER
+  AGENT
+
+  @@map("user_role")
+}
+
+enum RequestStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+
+  @@map("request_status")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120)
+  username     String   @unique @db.VarChar(40)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         UserRole @default(REQUESTER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sessions      Session[]
+  requests      Request[]
+  statusChanges RequestStatusHistory[]
+
+  @@map("users")
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  // SHA-256 (hex) do token opaco; o token em si só existe no cookie.
+  tokenHash  String   @unique @map("token_hash") @db.Char(64)
+  userId     Int      @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  // Base do timeout por inatividade.
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  // Limite absoluto da sessão.
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Category {
+  id       Int     @id @default(autoincrement()) @db.SmallInt
+  name     String  @unique @db.VarChar(60)
+  active   Boolean @default(true)
+  // Prazo de atendimento, em horas, das solicitações desta categoria.
+  slaHours Int     @map("sla_hours") @db.SmallInt
+
+  requests Request[]
+
+  @@map("categories")
+}
+
+model Request {
+  id          Int           @id @default(autoincrement())
+  title       String        @db.VarChar(120)
+  description String
+  categoryId  Int           @map("category_id") @db.SmallInt
+  requesterId Int           @map("requester_id")
+  status      RequestStatus @default(OPEN)
+  // Prazo calculado na abertura (created_at + sla_hours da categoria).
+  dueAt       DateTime      @map("due_at") @db.Timestamptz(3)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category  Category               @relation(fields: [categoryId], references: [id])
+  requester User                   @relation(fields: [requesterId], references: [id])
+  history   RequestStatusHistory[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([requesterId])
+  @@index([createdAt])
+  @@map("requests")
+}
+
+model RequestStatusHistory {
+  id          Int            @id @default(autoincrement())
+  requestId   Int            @map("request_id")
+  // Nulo no registro de abertura.
+  fromStatus  RequestStatus? @map("from_status")
+  toStatus    RequestStatus  @map("to_status")
+  changedById Int            @map("changed_by")
+  changedAt   DateTime       @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([requestId, changedAt])
+  @@map("request_status_history")
+}
