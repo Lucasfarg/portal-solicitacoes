@@ -38,6 +38,15 @@ export async function createUser(
   });
 }
 
+export async function createCategory(
+  app: NestExpressApplication,
+  name: string,
+  slaHours: number,
+  active = true,
+) {
+  return app.get(PrismaService).category.create({ data: { name, slaHours, active } });
+}
+
 // Cria a sessão direto no serviço e devolve o cabeçalho Cookie pronto,
 // para os testes que não são sobre o login não gastarem o limite de tentativas.
 export async function sessionCookieFor(app: NestExpressApplication, userId: number) {
