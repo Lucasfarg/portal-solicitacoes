@@ -3,33 +3,58 @@
     <h1 class="po-font-title">Portal de Solicitações Internas</h1>
     <p class="po-font-text">Entre com seu usuário e senha.</p>
 
-    <po-login
-      formControlName="username"
-      name="username"
-      p-label="Usuário"
-      [p-auto-focus]="true"
-      [p-no-autocomplete]="false"
-    />
-    <app-field-error [control]="form.controls.username" />
+    <!-- Campos nativos: o po-login e o po-password não aceitam autocomplete="username" /
+         "current-password", e o "mostrar senha" do po-password só responde ao mouse. -->
+    <div class="native-field">
+      <label class="po-label" for="username">Usuário</label>
+      <input
+        #username
+        class="po-input"
+        id="username"
+        type="text"
+        formControlName="username"
+        autocomplete="username"
+        autocapitalize="none"
+        required
+        appErrorId="username-error"
+      />
+    </div>
+    <app-field-error id="username-error" [control]="form.controls.username" />
 
-    <po-password
-      formControlName="password"
-      name="password"
-      p-label="Senha"
-      [p-no-autocomplete]="false"
-    />
-    <app-field-error [control]="form.controls.password" />
+    <div class="native-field">
+      <label class="po-label" for="password">Senha</label>
+      <div class="password">
+        <input
+          class="po-input"
+          id="password"
+          formControlName="password"
+          autocomplete="current-password"
+          required
+          appErrorId="password-error"
+          [type]="showPassword() ? 'text' : 'password'"
+        />
+        <button
+          type="button"
+          class="native-button"
+          [attr.aria-pressed]="showPassword()"
+          (click)="showPassword.set(!showPassword())"
+        >
+          Mostrar senha
+        </button>
+      </div>
+    </div>
+    <app-field-error id="password-error" [control]="form.controls.password" />
 
     @if (failure(); as message) {
       <p class="login-failure" role="alert">{{ message }}</p>
     }
 
+    <!-- O botão não é desabilitado durante o envio: desabilitado ele perderia o foco. -->
     <po-button
       class="login-submit"
-      p-label="Entrar"
       p-kind="primary"
+      [p-label]="loading() ? 'Entrando…' : 'Entrar'"
       [p-type]="submitType"
-      [p-loading]="loading()"
     />
   </form>
 </main>

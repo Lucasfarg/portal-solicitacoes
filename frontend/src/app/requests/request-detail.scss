@@ -1,3 +1,18 @@
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: 0 0 var(--spacing-xs);
+  padding: 0;
+  list-style: none;
+
+  // Separador desenhado pelo CSS: não entra na leitura.
+  li + li::before {
+    content: '/';
+    margin-right: var(--spacing-xs);
+  }
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -5,9 +20,31 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-md);
+
+  dt {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.section-title {
+  margin: 0 0 var(--spacing-xs);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-neutral-light-20);
+  font-size: var(--font-size-default);
+}
+
 .description {
   margin: 0 0 var(--spacing-md);
-  padding: 0 var(--spacing-xs);
   // Mantém as quebras de linha que a pessoa digitou.
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -35,6 +35,12 @@ export class AuthService {
     return this.http.post<void>('/api/auth/logout', null).pipe(tap(() => this.state.set(null)));
   }
 
+  // Qualquer chamada autenticada renova a sessão no servidor; esta não faz mais nada.
+  // É a resposta ao aviso de sessão perto de expirar.
+  keepAlive(): Observable<AuthUser> {
+    return this.http.get<AuthUser>('/api/auth/me');
+  }
+
   // Chamado pelo interceptor quando a API responde 401: a sessão acabou no servidor.
   clear(): void {
     this.state.set(null);

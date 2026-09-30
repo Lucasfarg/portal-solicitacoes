@@ -1,10 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { PoNotificationService, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import { PoButtonModule, PoNotificationService, PoWidgetModule } from '@po-ui/ng-components';
 import { DashboardSummary, RequestStatus } from '@portal/shared';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
 import { PortalApi } from '../core/portal-api';
+import { Page } from '../layout/page';
 
 interface Card {
   label: string;
@@ -16,7 +17,7 @@ interface Card {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [PoPageModule, PoWidgetModule],
+  imports: [Page, PoWidgetModule, PoButtonModule],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -68,7 +69,8 @@ export class Dashboard {
       },
       {
         label: 'Tempo médio de atendimento',
-        value: average === null ? '—' : `${average.toLocaleString('pt-BR')} h`,
+        // Sem concluídas não há média; um traço não seria lido pelo leitor de tela.
+        value: average === null ? 'Sem dados' : `${average.toLocaleString('pt-BR')} h`,
         help: 'Da abertura à conclusão',
       },
     ];
@@ -81,7 +83,7 @@ export class Dashboard {
     });
   }
 
-  protected openList(status: Card['status']): void {
+  protected openList(status: RequestStatus | 'ALL'): void {
     const queryParams = status === 'ALL' ? {} : { status };
     void this.router.navigate(['/solicitacoes'], { queryParams });
   }

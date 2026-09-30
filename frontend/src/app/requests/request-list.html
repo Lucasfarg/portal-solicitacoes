@@ -1,5 +1,13 @@
-<po-page-default [p-title]="title()" [p-actions]="pageActions">
-  <form [formGroup]="filters" (ngSubmit)="applyFilters()">
+<app-page [title]="title()">
+  <po-button
+    pageActions
+    p-label="Nova solicitação"
+    p-icon="an an-plus"
+    p-kind="primary"
+    (p-click)="newRequest()"
+  />
+
+  <form aria-label="Filtros" [formGroup]="filters" (ngSubmit)="applyFilters()">
     <div class="po-row">
       <po-input
         class="po-sm-12 po-md-6 po-lg-4"
@@ -7,7 +15,6 @@
         name="q"
         p-label="Título"
         p-placeholder="Buscar no título"
-        [p-clean]="true"
       />
       <po-select
         class="po-sm-6 po-md-3 po-lg-2"
@@ -23,22 +30,16 @@
         p-label="Categoria"
         [p-options]="categoryOptions()"
       />
-      <po-datepicker
-        class="po-sm-6 po-md-3 po-lg-2"
-        formControlName="from"
-        name="from"
-        p-label="Aberta de"
-        [p-iso-format]="isoBasic"
-        [p-clean]="true"
-      />
-      <po-datepicker
-        class="po-sm-6 po-md-3 po-lg-2"
-        formControlName="to"
-        name="to"
-        p-label="Aberta até"
-        [p-iso-format]="isoBasic"
-        [p-clean]="true"
-      />
+      <!-- Data nativa: no po-datepicker o foco não entra no calendário pelo teclado e os
+           seletores de mês e ano não têm rótulo. -->
+      <div class="po-sm-6 po-md-3 po-lg-2 native-field date-field">
+        <label class="po-label" for="filter-from">Aberta de</label>
+        <input class="po-input" id="filter-from" type="date" formControlName="from" />
+      </div>
+      <div class="po-sm-6 po-md-3 po-lg-2 native-field date-field">
+        <label class="po-label" for="filter-to">Aberta até</label>
+        <input class="po-input" id="filter-to" type="date" formControlName="to" />
+      </div>
     </div>
     <div class="filter-buttons">
       <po-button p-label="Filtrar" p-kind="primary" [p-type]="submitType" />
@@ -49,12 +50,15 @@
   @if (isMobile()) {
     <div class="cards">
       @for (row of rows(); track row.id) {
-        <po-widget [p-title]="row.code" p-primary-label="Abrir" (p-primary-action)="open(row)">
+        <po-widget [p-title]="row.code">
           <p class="po-font-text-large-bold card-title">{{ row.title }}</p>
           <div class="card-tags">
             <po-tag [p-value]="statusLabels[row.status]" [p-type]="statusTagType[row.status]" />
             @if (row.deadline === 'LATE') {
-              <po-tag p-value="Atrasada" [p-type]="danger" />
+              <po-tag
+                [p-value]="deadlineLabels[row.deadline]"
+                [p-type]="deadlineTagType[row.deadline]"
+              />
             }
           </div>
           <p class="po-font-text-small card-meta">
@@ -62,6 +66,7 @@
             Aberta em {{ row.createdAt | date: dateTimeFormat }}<br />
             Prazo: {{ row.dueAt | date: dateTimeFormat }}
           </p>
+          <po-button p-label="Abrir" [p-aria-label]="'Abrir ' + row.code" (p-click)="open(row)" />
         </po-widget>
       } @empty {
         @if (!loading()) {
@@ -70,15 +75,60 @@
       }
     </div>
   } @else {
-    <po-table
-      [p-columns]="columns()"
-      [p-items]="rows()"
-      [p-actions]="rowActions"
-      [p-loading]="loading()"
-      [p-striped]="true"
-      [p-hide-columns-manager]="true"
-      [p-hide-table-search]="true"
-    />
+    <!-- Tabela nativa: a ação de linha do po-table não recebe foco e a área rolável dele
+         não é alcançável pelo teclado. Aqui o código é um link e a moldura recebe foco. -->
+    <div class="table-scroll" role="region" aria-labelledby="list-caption" tabindex="0">
+      <table class="data-table" [attr.aria-busy]="loading()">
+        <caption id="list-caption">
+          Solicitações encontradas
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Código</th>
+            <th scope="col">Título</th>
+            <th scope="col">Categoria</th>
+            @if (isAgent()) {
+              <th scope="col">Solicitante</th>
+            }
+            <th scope="col">Abertura</th>
+            <th scope="col">Prazo</th>
+            <th scope="col">SLA</th>
+            <th scope="col">Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td class="code">
+                <a class="link" [routerLink]="['/solicitacoes', row.id]">{{ row.code }}</a>
+              </td>
+              <td class="title">{{ row.title }}</td>
+              <td>{{ row.category }}</td>
+              @if (isAgent()) {
+                <td>{{ row.requester }}</td>
+              }
+              <td>{{ row.createdAt | date: dateTimeFormat }}</td>
+              <td>{{ row.dueAt | date: dateTimeFormat }}</td>
+              <td>
+                <po-tag
+                  [p-value]="deadlineLabels[row.deadline]"
+                  [p-type]="deadlineTagType[row.deadline]"
+                />
+              </td>
+              <td>
+                <po-tag [p-value]="statusLabels[row.status]" [p-type]="statusTagType[row.status]" />
+              </td>
+            </tr>
+          } @empty {
+            @if (!loading()) {
+              <tr>
+                <td [attr.colspan]="isAgent() ? 8 : 7">Nenhuma solicitação encontrada.</td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
   }
 
   <nav class="pager" aria-label="Paginação">
@@ -87,7 +137,8 @@
       [p-disabled]="page().page <= 1"
       (p-click)="goToPage(page().page - 1)"
     />
-    <span class="po-font-text">
+    <!-- role="status": o leitor de tela anuncia o resultado quando o filtro ou a página muda. -->
+    <span class="po-font-text" role="status">
       Página {{ page().page }} de {{ totalPages() }} · {{ page().total }}
       {{ page().total === 1 ? 'solicitação' : 'solicitações' }}
     </span>
@@ -97,4 +148,4 @@
       (p-click)="goToPage(page().page + 1)"
     />
   </nav>
-</po-page-default>
+</app-page>

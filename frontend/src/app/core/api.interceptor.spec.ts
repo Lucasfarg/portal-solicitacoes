@@ -5,6 +5,7 @@ import { Router, provideRouter } from '@angular/router';
 import { PoNotificationService } from '@po-ui/ng-components';
 import { apiInterceptor } from './api.interceptor';
 import { AuthService } from './auth.service';
+import { SessionTimer } from './session-timer';
 
 describe('apiInterceptor', () => {
   let http: HttpClient;
@@ -38,6 +39,17 @@ describe('apiInterceptor', () => {
     const request = backend.expectOne('/api/requests');
     expect(request.request.headers.get('X-Requested-With')).toBe('XMLHttpRequest');
     request.flush({});
+  });
+
+  it('a cada resposta da API recomeça a contagem do aviso de sessão perto de expirar', () => {
+    const restart = vi.spyOn(TestBed.inject(SessionTimer), 'restart');
+
+    http.get('/api/categories').subscribe();
+    expect(restart).not.toHaveBeenCalled();
+    backend.expectOne('/api/categories').flush([]);
+
+    expect(restart).toHaveBeenCalledOnce();
+    TestBed.inject(SessionTimer).stop();
   });
 
   it('quando a sessão expira (401), limpa o usuário, avisa uma vez e leva ao login', () => {

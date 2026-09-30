@@ -3,6 +3,7 @@ import { AbstractControl } from '@angular/forms';
 
 // Mensagem de erro embaixo de um campo. Aparece depois que o usuário passou pelo campo
 // (ou tentou salvar) e mostra a mensagem do schema Zod (core/zod-validator.ts).
+// O `id` posto em <app-field-error> é o que o campo aponta com appErrorId (core/field-a11y.ts).
 @Component({
   selector: 'app-field-error',
   template: `

@@ -1,1 +1,115 @@
-/* You can add global styles to this file, and also import other style files */
+// Estilos globais do app. O tema do PO UI é carregado antes (angular.json); aqui ficam os
+// ajustes de contraste sobre o tema e o visual das peças escritas com HTML nativo.
+
+// O tema usa um cinza claro no texto de exemplo dos campos (1,84:1 sobre branco); este passa
+// de 4,5:1, o mínimo da WCAG para texto. O tema define a variável no próprio campo
+// (input.po-input, po-textarea), por isso a troca é feita nos mesmos seletores.
+input.po-input,
+po-textarea {
+  --text-color-placeholder: var(--color-neutral-dark-70);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-theme);
+  color: var(--color-neutral-dark-90);
+}
+
+// Indicador de foco dos elementos nativos (os componentes do PO UI têm o deles).
+.link:focus-visible,
+.native-button:focus-visible,
+.native-field .po-input:focus-visible,
+.table-scroll:focus-visible,
+h1:focus-visible {
+  outline: 2px solid var(--color-action-focus);
+  outline-offset: 2px;
+}
+
+.link {
+  // Alvo de clique com pelo menos 24 px de altura (WCAG 2.5.8).
+  display: inline-block;
+  padding-block: 4px;
+  color: var(--color-action-default);
+  text-decoration: underline;
+
+  &:hover {
+    color: var(--color-action-hover);
+  }
+}
+
+// Botão nativo com a aparência de um botão secundário. Usado onde o botão precisa de um
+// atributo ARIA que o po-button não repassa (aria-expanded, aria-pressed).
+.native-button {
+  min-height: 44px;
+  padding: 0 var(--spacing-sm);
+  border: 1px solid var(--color-action-default);
+  border-radius: var(--border-radius-md);
+  background: var(--color-neutral-light-00);
+  color: var(--color-action-default);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-brand-01-lightest);
+  }
+}
+
+// Campo nativo (usuário, senha, data) com o rótulo em cima, no desenho dos campos do PO UI.
+.native-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+
+  .po-label {
+    font-weight: 600;
+  }
+
+  .po-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--spacing-xs);
+    border: 1px solid var(--color-neutral-dark-70);
+    border-radius: var(--border-radius-md);
+    font: inherit;
+    color: inherit;
+  }
+}
+
+// Tabela nativa. A moldura rola de lado quando a tabela não cabe e recebe foco, para que a
+// rolagem funcione também pelas setas do teclado.
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-bottom: 1px solid var(--color-neutral-light-20);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    font-weight: 700;
+  }
+
+  tbody tr:nth-child(even) {
+    background: var(--color-neutral-light-05);
+  }
+}
+
+// Quem pediu menos movimento ao sistema não recebe as animações do tema.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

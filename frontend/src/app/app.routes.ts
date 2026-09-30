@@ -16,15 +16,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'painel' },
-      { path: 'painel', component: Dashboard, title: 'Painel — Portal' },
-      { path: 'solicitacoes', component: RequestList, title: 'Solicitações — Portal' },
-      { path: 'solicitacoes/nova', component: RequestForm, title: 'Nova solicitação — Portal' },
-      { path: 'solicitacoes/:id', component: RequestDetailPage, title: 'Solicitação — Portal' },
-      {
-        path: 'solicitacoes/:id/editar',
-        component: RequestForm,
-        title: 'Editar solicitação — Portal',
-      },
+      // O título da aba de cada tela interna vem do h1 dela (layout/page.ts).
+      { path: 'painel', component: Dashboard },
+      { path: 'solicitacoes', component: RequestList },
+      { path: 'solicitacoes/nova', component: RequestForm },
+      { path: 'solicitacoes/:id', component: RequestDetailPage },
+      { path: 'solicitacoes/:id/editar', component: RequestForm },
     ],
   },
   { path: '**', redirectTo: '' },

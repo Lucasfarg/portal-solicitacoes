@@ -19,6 +19,18 @@
   background: var(--color-neutral-light-00);
 }
 
+// O campo da senha e o botão de mostrar ficam lado a lado e quebram em telas estreitas.
+.password {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+
+  .po-input {
+    flex: 1 1 10rem;
+    width: auto;
+  }
+}
+
 .login-failure {
   margin: 0;
   color: var(--color-feedback-negative-dark);

@@ -1,18 +1,20 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
+  PoButtonModule,
   PoFieldModule,
   PoNotificationService,
-  PoPageModule,
   PoSelectOption,
 } from '@po-ui/ng-components';
 import { Category, createRequestSchema, RequestDetail } from '@portal/shared';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
+import { FieldA11y, focusFirstInvalid } from '../core/field-a11y';
 import { FieldError } from '../core/field-error';
 import { PortalApi } from '../core/portal-api';
 import { zodValidator } from '../core/zod-validator';
+import { Page } from '../layout/page';
 import { canModify } from './request-view';
 
 const fields = createRequestSchema.shape;
@@ -20,7 +22,7 @@ const fields = createRequestSchema.shape;
 // Formulário de abrir e de editar solicitação: a rota com :id é edição.
 @Component({
   selector: 'app-request-form',
-  imports: [ReactiveFormsModule, PoPageModule, PoFieldModule, FieldError],
+  imports: [ReactiveFormsModule, Page, PoFieldModule, PoButtonModule, FieldError, FieldA11y],
   templateUrl: './request-form.html',
 })
 export class RequestForm {
@@ -28,6 +30,7 @@ export class RequestForm {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly notification = inject(PoNotificationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // Id da solicitação em edição; nulo quando é uma nova.
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('id');
@@ -74,9 +77,16 @@ export class RequestForm {
   }
 
   save(): void {
+    // Um segundo clique enquanto a API responde não envia de novo. O botão não é desabilitado:
+    // desabilitado ele perderia o foco.
+    if (this.saving()) {
+      return;
+    }
     if (this.form.invalid) {
-      // Mostra as mensagens de todos os campos, inclusive os que a pessoa não tocou.
+      // Mostra as mensagens de todos os campos, inclusive os que a pessoa não tocou, e
+      // leva o foco ao primeiro campo com erro.
       this.form.markAllAsTouched();
+      focusFirstInvalid(this.host.nativeElement);
       return;
     }
 

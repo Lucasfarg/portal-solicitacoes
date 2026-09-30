@@ -1,23 +1,18 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
-  PoBreadcrumb,
-  PoDialogService,
-  PoDividerModule,
-  PoInfoModule,
+  PoButtonModule,
   PoNotificationService,
-  PoPageAction,
-  PoPageModule,
-  PoTableColumn,
-  PoTableModule,
   PoTagModule,
   PoTagType,
 } from '@po-ui/ng-components';
 import { REQUEST_STATUS_LABELS, RequestDetail, RequestStatus } from '@portal/shared';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
+import { ConfirmDialog } from '../core/confirm-dialog';
 import { PortalApi } from '../core/portal-api';
+import { Page } from '../layout/page';
 import {
   ADVANCE_LABEL,
   canModify,
@@ -30,7 +25,7 @@ import {
 
 @Component({
   selector: 'app-request-detail',
-  imports: [DatePipe, PoPageModule, PoInfoModule, PoTagModule, PoDividerModule, PoTableModule],
+  imports: [DatePipe, RouterLink, Page, ConfirmDialog, PoButtonModule, PoTagModule],
   templateUrl: './request-detail.html',
   styleUrl: './request-detail.scss',
 })
@@ -38,15 +33,17 @@ export class RequestDetailPage {
   private readonly api = inject(PortalApi);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly dialog = inject(PoDialogService);
   private readonly notification = inject(PoNotificationService);
 
   private readonly id = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
+  private readonly dialog = viewChild.required(ConfirmDialog);
+  private readonly page = viewChild.required(Page);
 
   protected readonly dateTimeFormat = DATE_TIME_FORMAT;
   protected readonly statusLabels = REQUEST_STATUS_LABELS;
   protected readonly statusTagType = STATUS_TAG_TYPE;
   protected readonly danger = PoTagType.Danger;
+  protected readonly advanceLabel = ADVANCE_LABEL;
 
   protected readonly request = signal<RequestDetail | null>(null);
 
@@ -55,10 +52,6 @@ export class RequestDetailPage {
     return request ? `${request.code} — ${request.title}` : 'Solicitação';
   });
 
-  protected readonly breadcrumb: PoBreadcrumb = {
-    items: [{ label: 'Solicitações', link: '/solicitacoes' }, { label: 'Detalhe' }],
-  };
-
   protected readonly overdue = computed(() => {
     const request = this.request();
     return request !== null && isOverdue(request);
@@ -66,35 +59,15 @@ export class RequestDetailPage {
 
   // Os botões dependem de quem está vendo e da situação da solicitação:
   // o atendente avança o status; o dono edita e exclui enquanto está em Aberto.
-  protected readonly actions = computed<PoPageAction[]>(() => {
+  protected readonly nextStatus = computed(() => {
     const request = this.request();
-    if (!request) {
-      return [];
-    }
-    const user = this.auth.user();
-    const actions: PoPageAction[] = [];
-
-    const next = nextStatusFor(user, request);
-    if (next) {
-      actions.push({ label: ADVANCE_LABEL[next], action: () => this.confirmAdvance(next) });
-    }
-    if (canModify(user, request)) {
-      actions.push(
-        {
-          label: 'Editar',
-          action: () => void this.router.navigate(['/solicitacoes', request.id, 'editar']),
-        },
-        { label: 'Excluir', type: 'danger', action: () => this.confirmRemove(request) },
-      );
-    }
-    return actions;
+    return request ? nextStatusFor(this.auth.user(), request) : null;
   });
 
-  protected readonly historyColumns: PoTableColumn[] = [
-    { property: 'changedAt', label: 'Quando', type: 'dateTime', format: DATE_TIME_FORMAT },
-    { property: 'change', label: 'O que mudou' },
-    { property: 'changedBy', label: 'Quem' },
-  ];
+  protected readonly canModify = computed(() => {
+    const request = this.request();
+    return request !== null && canModify(this.auth.user(), request);
+  });
 
   protected readonly history = computed(() =>
     (this.request()?.history ?? []).map((entry) => ({
@@ -119,12 +92,18 @@ export class RequestDetailPage {
     });
   }
 
-  private confirmAdvance(next: RequestStatus): void {
-    this.dialog.confirm({
-      title: ADVANCE_LABEL[next],
-      message: `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}". Essa mudança não pode ser desfeita.`,
-      confirm: () => this.advance(next),
-    });
+  protected edit(): void {
+    void this.router.navigate(['/solicitacoes', this.id, 'editar']);
+  }
+
+  protected confirmAdvance(next: RequestStatus): void {
+    this.dialog().ask(
+      {
+        title: ADVANCE_LABEL[next],
+        message: `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}". Essa mudança não pode ser desfeita.`,
+      },
+      () => this.advance(next),
+    );
   }
 
   private advance(next: RequestStatus): void {
@@ -132,17 +111,25 @@ export class RequestDetailPage {
       next: (request) => {
         this.request.set(request);
         this.notification.success(`Situação alterada para "${REQUEST_STATUS_LABELS[next]}".`);
+        // O botão que tinha o foco muda de nome ou some (não há status depois de Concluído).
+        this.page().focusTitle();
       },
       error: (error: unknown) => this.showConflict(error),
     });
   }
 
-  private confirmRemove(request: RequestDetail): void {
-    this.dialog.confirm({
-      title: 'Excluir solicitação',
-      message: `Excluir ${request.code} — ${request.title}? Essa ação não pode ser desfeita.`,
-      confirm: () => this.remove(request),
-    });
+  protected confirmRemove(): void {
+    const request = this.request();
+    if (!request) {
+      return;
+    }
+    this.dialog().ask(
+      {
+        title: 'Excluir solicitação',
+        message: `Excluir ${request.code} — ${request.title}? Essa ação não pode ser desfeita.`,
+      },
+      () => this.remove(request),
+    );
   }
 
   private remove(request: RequestDetail): void {
@@ -160,5 +147,6 @@ export class RequestDetailPage {
   private showConflict(error: unknown): void {
     this.notification.error(errorMessage(error));
     this.load();
+    this.page().focusTitle();
   }
 }
