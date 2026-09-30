@@ -1,0 +1,41 @@
+.login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--spacing-md);
+  background: var(--color-neutral-light-05);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+  max-width: 400px;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-neutral-light-20);
+  border-radius: 8px;
+  background: var(--color-neutral-light-00);
+}
+
+// O campo da senha e o botão de mostrar ficam lado a lado e quebram em telas estreitas.
+.password {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+
+  .po-input {
+    flex: 1 1 10rem;
+    width: auto;
+  }
+}
+
+.login-failure {
+  margin: 0;
+  color: var(--color-feedback-negative-dark);
+}
+
+.login-submit {
+  margin-top: var(--spacing-sm);
+}

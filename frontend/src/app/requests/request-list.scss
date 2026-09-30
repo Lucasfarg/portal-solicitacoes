@@ -1,0 +1,59 @@
+// Alinha o campo de data nativo com os campos do PO UI da mesma linha.
+.date-field {
+  padding: 0 var(--spacing-xs);
+}
+
+.filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+caption {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-weight: 700;
+  text-align: left;
+}
+
+.code {
+  white-space: nowrap;
+}
+
+// O título quebra entre palavras e não encolhe abaixo de uma largura legível; se a tabela
+// não couber, é a moldura que rola.
+.title {
+  min-width: 10rem;
+  overflow-wrap: break-word;
+}
+
+.cards {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.card-title,
+.card-meta {
+  margin: 0;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-xs) 0;
+}
+
+.card-meta {
+  margin-bottom: var(--spacing-xs);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}

@@ -1,0 +1,53 @@
+<app-page [title]="title">
+  <ng-container ngProjectAs="[pageActions]">
+    <po-button p-label="Cancelar" (p-click)="cancel()" />
+    <po-button p-label="Salvar" p-icon="an an-check" p-kind="primary" (p-click)="save()" />
+  </ng-container>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="po-row">
+      <div class="po-sm-12 po-md-8">
+        <po-input
+          formControlName="title"
+          name="title"
+          appErrorId="title-error"
+          p-label="Título"
+          p-placeholder="Resumo do que você precisa"
+          [p-maxlength]="120"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error id="title-error" [control]="form.controls.title" />
+      </div>
+
+      <div class="po-sm-12 po-md-4">
+        <po-select
+          formControlName="categoryId"
+          name="categoryId"
+          appErrorId="category-error"
+          p-label="Categoria"
+          p-placeholder="Selecione"
+          [p-options]="categoryOptions()"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error id="category-error" [control]="form.controls.categoryId" />
+      </div>
+
+      <div class="po-sm-12">
+        <po-textarea
+          formControlName="description"
+          name="description"
+          appErrorId="description-error"
+          p-label="Descrição"
+          p-placeholder="Descreva a necessidade com os detalhes que ajudam no atendimento"
+          [p-rows]="6"
+          [p-maxlength]="2000"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error id="description-error" [control]="form.controls.description" />
+      </div>
+    </div>
+  </form>
+</app-page>

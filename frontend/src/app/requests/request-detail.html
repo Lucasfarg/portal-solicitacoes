@@ -1,0 +1,74 @@
+<app-page [title]="title()">
+  <!-- Trilha de navegação nativa: o po-breadcrumb põe um valor inválido em aria-current e
+       faz do item atual uma parada de Tab sem função. -->
+  <nav pageBreadcrumb class="breadcrumb" aria-label="Você está em">
+    <ol>
+      <li><a class="link" routerLink="/solicitacoes">Solicitações</a></li>
+      <li aria-current="page">Detalhe</li>
+    </ol>
+  </nav>
+
+  <ng-container ngProjectAs="[pageActions]">
+    @if (nextStatus(); as next) {
+      <po-button p-kind="primary" [p-label]="advanceLabel[next]" (p-click)="confirmAdvance(next)" />
+    }
+    @if (canModify()) {
+      <po-button p-label="Editar" (p-click)="edit()" />
+      <po-button p-label="Excluir" [p-danger]="true" (p-click)="confirmRemove()" />
+    }
+  </ng-container>
+
+  @if (request(); as request) {
+    <div class="tags">
+      <po-tag [p-value]="statusLabels[request.status]" [p-type]="statusTagType[request.status]" />
+      @if (overdue()) {
+        <po-tag p-value="Atrasada" [p-type]="danger" />
+      }
+    </div>
+
+    <!-- Lista de definição: o leitor de tela lê cada rótulo junto do seu valor. -->
+    <dl class="facts">
+      <div>
+        <dt>Categoria</dt>
+        <dd>{{ request.category.name }}</dd>
+      </div>
+      <div>
+        <dt>Solicitante</dt>
+        <dd>{{ request.requester.name }}</dd>
+      </div>
+      <div>
+        <dt>Aberta em</dt>
+        <dd>{{ request.createdAt | date: dateTimeFormat }}</dd>
+      </div>
+      <div>
+        <dt>Prazo de atendimento</dt>
+        <dd>{{ request.dueAt | date: dateTimeFormat }}</dd>
+      </div>
+    </dl>
+
+    <h2 class="section-title">Descrição</h2>
+    <p class="po-font-text description">{{ request.description }}</p>
+
+    <h2 class="section-title" id="history-title">Histórico</h2>
+    <table class="data-table" aria-labelledby="history-title">
+      <thead>
+        <tr>
+          <th scope="col">Quando</th>
+          <th scope="col">O que mudou</th>
+          <th scope="col">Quem</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of history(); track entry.changedAt) {
+          <tr>
+            <td>{{ entry.changedAt | date: dateTimeFormat }}</td>
+            <td>{{ entry.change }}</td>
+            <td>{{ entry.changedBy }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</app-page>
+
+<app-confirm-dialog />

@@ -1,0 +1,21 @@
+<app-page title="Painel" [subtitle]="subtitle()">
+  <div class="po-row">
+    @for (card of cards(); track card.label) {
+      <div class="po-sm-12 po-md-6 po-lg-4">
+        <po-widget [p-title]="card.label">
+          <p class="kpi-value">{{ card.value }}</p>
+          <p class="po-font-text-small">{{ card.help }}</p>
+          <!-- O rótulo acessível diz de qual cartão é o botão: fora de contexto os quatro
+               "Ver solicitações" seriam iguais para o leitor de tela. -->
+          @if (card.status; as status) {
+            <po-button
+              p-label="Ver solicitações"
+              [p-aria-label]="'Ver solicitações: ' + card.label"
+              (p-click)="openList(status)"
+            />
+          }
+        </po-widget>
+      </div>
+    }
+  </div>
+</app-page>
