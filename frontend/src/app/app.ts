@@ -1,17 +1,11 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { PoPageModule, PoTagModule, PoWidgetModule } from '@po-ui/ng-components';
-import { REQUEST_STATUS_LABELS, REQUEST_STATUSES } from '@portal/shared';
 
+// A raiz só hospeda o roteador: o login ocupa a tela inteira e as demais telas
+// entram dentro do layout (layout/shell.ts).
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, PoPageModule, PoWidgetModule, PoTagModule],
-  templateUrl: './app.html',
-  styleUrl: './app.scss',
+  imports: [RouterOutlet],
+  template: '<router-outlet />',
 })
-export class App {
-  protected readonly statuses = REQUEST_STATUSES.map((status) => ({
-    value: status,
-    label: REQUEST_STATUS_LABELS[status],
-  }));
-}
+export class App {}

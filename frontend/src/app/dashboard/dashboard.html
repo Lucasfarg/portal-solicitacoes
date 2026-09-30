@@ -1,0 +1,16 @@
+<po-page-default p-title="Painel" [p-subtitle]="subtitle()">
+  <div class="po-row">
+    @for (card of cards(); track card.label) {
+      <div class="po-sm-12 po-md-6 po-lg-4">
+        <po-widget
+          [p-title]="card.label"
+          [p-primary-label]="card.status ? 'Ver solicitações' : ''"
+          (p-primary-action)="openList(card.status)"
+        >
+          <p class="kpi-value">{{ card.value }}</p>
+          <p class="po-font-text-small">{{ card.help }}</p>
+        </po-widget>
+      </div>
+    }
+  </div>
+</po-page-default>

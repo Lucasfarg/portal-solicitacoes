@@ -1,0 +1,50 @@
+<po-page-edit
+  [p-title]="title"
+  [p-disable-submit]="saving()"
+  (p-save)="save()"
+  (p-cancel)="cancel()"
+>
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="po-row">
+      <div class="po-sm-12 po-md-8">
+        <po-input
+          formControlName="title"
+          name="title"
+          p-label="Título"
+          p-placeholder="Resumo do que você precisa"
+          [p-maxlength]="120"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error [control]="form.controls.title" />
+      </div>
+
+      <div class="po-sm-12 po-md-4">
+        <po-select
+          formControlName="categoryId"
+          name="categoryId"
+          p-label="Categoria"
+          p-placeholder="Selecione"
+          [p-options]="categoryOptions()"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error [control]="form.controls.categoryId" />
+      </div>
+
+      <div class="po-sm-12">
+        <po-textarea
+          formControlName="description"
+          name="description"
+          p-label="Descrição"
+          p-placeholder="Descreva a necessidade com os detalhes que ajudam no atendimento"
+          [p-rows]="6"
+          [p-maxlength]="2000"
+          [p-required]="true"
+          [p-show-required]="true"
+        />
+        <app-field-error [control]="form.controls.description" />
+      </div>
+    </div>
+  </form>
+</po-page-edit>

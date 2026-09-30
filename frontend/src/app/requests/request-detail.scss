@@ -1,0 +1,14 @@
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.description {
+  margin: 0 0 var(--spacing-md);
+  padding: 0 var(--spacing-xs);
+  // Mantém as quebras de linha que a pessoa digitou.
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

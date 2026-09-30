@@ -1,0 +1,35 @@
+<main class="login">
+  <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
+    <h1 class="po-font-title">Portal de Solicitações Internas</h1>
+    <p class="po-font-text">Entre com seu usuário e senha.</p>
+
+    <po-login
+      formControlName="username"
+      name="username"
+      p-label="Usuário"
+      [p-auto-focus]="true"
+      [p-no-autocomplete]="false"
+    />
+    <app-field-error [control]="form.controls.username" />
+
+    <po-password
+      formControlName="password"
+      name="password"
+      p-label="Senha"
+      [p-no-autocomplete]="false"
+    />
+    <app-field-error [control]="form.controls.password" />
+
+    @if (failure(); as message) {
+      <p class="login-failure" role="alert">{{ message }}</p>
+    }
+
+    <po-button
+      class="login-submit"
+      p-label="Entrar"
+      p-kind="primary"
+      [p-type]="submitType"
+      [p-loading]="loading()"
+    />
+  </form>
+</main>

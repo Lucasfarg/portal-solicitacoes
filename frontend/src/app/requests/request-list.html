@@ -1,0 +1,100 @@
+<po-page-default [p-title]="title()" [p-actions]="pageActions">
+  <form [formGroup]="filters" (ngSubmit)="applyFilters()">
+    <div class="po-row">
+      <po-input
+        class="po-sm-12 po-md-6 po-lg-4"
+        formControlName="q"
+        name="q"
+        p-label="Título"
+        p-placeholder="Buscar no título"
+        [p-clean]="true"
+      />
+      <po-select
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="status"
+        name="status"
+        p-label="Situação"
+        [p-options]="statusOptions"
+      />
+      <po-select
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="categoryId"
+        name="categoryId"
+        p-label="Categoria"
+        [p-options]="categoryOptions()"
+      />
+      <po-datepicker
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="from"
+        name="from"
+        p-label="Aberta de"
+        [p-iso-format]="isoBasic"
+        [p-clean]="true"
+      />
+      <po-datepicker
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="to"
+        name="to"
+        p-label="Aberta até"
+        [p-iso-format]="isoBasic"
+        [p-clean]="true"
+      />
+    </div>
+    <div class="filter-buttons">
+      <po-button p-label="Filtrar" p-kind="primary" [p-type]="submitType" />
+      <po-button p-label="Limpar filtros" (p-click)="clearFilters()" />
+    </div>
+  </form>
+
+  @if (isMobile()) {
+    <div class="cards">
+      @for (row of rows(); track row.id) {
+        <po-widget [p-title]="row.code" p-primary-label="Abrir" (p-primary-action)="open(row)">
+          <p class="po-font-text-large-bold card-title">{{ row.title }}</p>
+          <div class="card-tags">
+            <po-tag [p-value]="statusLabels[row.status]" [p-type]="statusTagType[row.status]" />
+            @if (row.deadline === 'LATE') {
+              <po-tag p-value="Atrasada" [p-type]="danger" />
+            }
+          </div>
+          <p class="po-font-text-small card-meta">
+            {{ row.category }} · {{ row.requester }}<br />
+            Aberta em {{ row.createdAt | date: dateTimeFormat }}<br />
+            Prazo: {{ row.dueAt | date: dateTimeFormat }}
+          </p>
+        </po-widget>
+      } @empty {
+        @if (!loading()) {
+          <p class="po-font-text">Nenhuma solicitação encontrada.</p>
+        }
+      }
+    </div>
+  } @else {
+    <po-table
+      [p-columns]="columns()"
+      [p-items]="rows()"
+      [p-actions]="rowActions"
+      [p-loading]="loading()"
+      [p-striped]="true"
+      [p-hide-columns-manager]="true"
+      [p-hide-table-search]="true"
+    />
+  }
+
+  <nav class="pager" aria-label="Paginação">
+    <po-button
+      p-label="Anterior"
+      [p-disabled]="page().page <= 1"
+      (p-click)="goToPage(page().page - 1)"
+    />
+    <span class="po-font-text">
+      Página {{ page().page }} de {{ totalPages() }} · {{ page().total }}
+      {{ page().total === 1 ? 'solicitação' : 'solicitações' }}
+    </span>
+    <po-button
+      p-label="Próxima"
+      [p-disabled]="page().page >= totalPages()"
+      (p-click)="goToPage(page().page + 1)"
+    />
+  </nav>
+</po-page-default>

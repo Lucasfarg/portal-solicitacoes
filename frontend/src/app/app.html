@@ -1,9 +1,0 @@
-<po-page-default p-title="Portal de Solicitações Internas">
-  <po-widget p-title="Situações de uma solicitação">
-    @for (status of statuses; track status.value) {
-      <po-tag [p-value]="status.label" />
-    }
-  </po-widget>
-
-  <router-outlet />
-</po-page-default>
