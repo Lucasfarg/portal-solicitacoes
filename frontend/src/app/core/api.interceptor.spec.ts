@@ -40,7 +40,7 @@ describe('apiInterceptor', () => {
     request.flush({});
   });
 
-  it('quando a sessão expira (401), limpa o usuário e leva ao login', () => {
+  it('quando a sessão expira (401), limpa o usuário, avisa uma vez e leva ao login', () => {
     const auth = TestBed.inject(AuthService);
     auth.login({ username: 'ana', password: 'Senha@123' }).subscribe();
     backend
@@ -48,12 +48,19 @@ describe('apiInterceptor', () => {
       .flush({ id: 1, name: 'Ana Souza', username: 'ana', role: 'REQUESTER' });
     expect(auth.user()).not.toBeNull();
 
-    http.get('/api/requests').subscribe({ error: () => undefined });
+    // Duas chamadas da mesma tela em andamento quando a sessão acaba.
+    const screenError = vi.fn();
+    http.get('/api/requests').subscribe({ error: screenError });
+    http.get('/api/categories').subscribe({ error: screenError });
     backend.expectOne('/api/requests').flush({ detail: 'Sessão expirada' }, unauthorized);
+    backend.expectOne('/api/categories').flush({ detail: 'Sessão expirada' }, unauthorized);
 
     expect(auth.user()).toBeNull();
     expect(notification.warning).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/' } });
+    // A tela não recebe o erro: não há um segundo aviso.
+    expect(screenError).not.toHaveBeenCalled();
   });
 
   it('não redireciona no 401 do próprio login (senha errada)', () => {
