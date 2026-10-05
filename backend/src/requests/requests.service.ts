@@ -20,6 +20,7 @@ import {
   WITH_HISTORY,
   WITH_NAMES,
 } from './request.mapper.js';
+import { type ExportFormat, toCsv, toDocx } from './request-export.js';
 import {
   assertCanChangeStatus,
   assertCanModify,
@@ -31,6 +32,9 @@ import {
 } from './request-rules.js';
 
 // Todo instante vem do relógio da API, nunca do now() do banco, para ficar na mesma régua.
+// Teto de linhas de uma exportação.
+const EXPORT_LIMIT = 1000;
+
 @Injectable()
 export class RequestsService {
   private readonly timeZone: string;
@@ -60,9 +64,9 @@ export class RequestsService {
     return this.detail(created.id);
   }
 
-  async list(user: AuthUser, query: ListRequestsQuery): Promise<RequestPage> {
-    const now = new Date();
-    const where: Prisma.RequestWhereInput = {
+  // Filtros da lista, já com o escopo de quem consulta. A exportação usa os mesmos.
+  private filterOf(user: AuthUser, query: ListRequestsQuery, now: Date): Prisma.RequestWhereInput {
+    return {
       ...visibleTo(user),
       deletedAt: null,
       status: query.status,
@@ -71,6 +75,11 @@ export class RequestsService {
       title: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
       AND: query.overdue ? overdueWhere(now) : undefined,
     };
+  }
+
+  async list(user: AuthUser, query: ListRequestsQuery): Promise<RequestPage> {
+    const now = new Date();
+    const where = this.filterOf(user, query, now);
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.request.findMany({
@@ -89,6 +98,20 @@ export class RequestsService {
       pageSize: query.pageSize,
       total,
     };
+  }
+
+  // Arquivo com todas as solicitações que atendem aos filtros (sem paginar), em CSV ou Word.
+  async export(user: AuthUser, query: ListRequestsQuery, format: ExportFormat): Promise<Buffer> {
+    const now = new Date();
+    const rows = await this.prisma.request.findMany({
+      where: this.filterOf(user, query, now),
+      include: WITH_NAMES,
+      omit: { description: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: EXPORT_LIMIT,
+    });
+    const requests = rows.map((row) => toRequestSummary(row, now));
+    return format === 'csv' ? toCsv(requests, this.timeZone) : toDocx(requests, this.timeZone, now);
   }
 
   async findOne(user: AuthUser, id: number): Promise<RequestDetail> {
