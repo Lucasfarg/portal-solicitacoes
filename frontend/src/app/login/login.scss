@@ -19,18 +19,6 @@
   background: var(--color-neutral-light-00);
 }
 
-// O campo da senha e o botão de mostrar ficam lado a lado e quebram em telas estreitas.
-.password {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-xs);
-
-  .po-input {
-    flex: 1 1 10rem;
-    width: auto;
-  }
-}
-
 .login-failure {
   margin: 0;
   color: var(--color-feedback-negative-dark);
@@ -38,4 +26,24 @@
 
 .login-submit {
   margin-top: var(--spacing-sm);
+}
+
+.demo {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-neutral-light-20);
+
+  p,
+  ul {
+    margin: 0;
+  }
+
+  ul {
+    padding-left: var(--spacing-md);
+  }
+}
+
+.demo-title {
+  margin: 0 0 var(--spacing-xs);
+  font-size: var(--font-size-default);
 }

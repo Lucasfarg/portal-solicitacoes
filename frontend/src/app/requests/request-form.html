@@ -1,8 +1,12 @@
-<app-page [title]="title">
-  <ng-container ngProjectAs="[pageActions]">
-    <po-button p-label="Cancelar" (p-click)="cancel()" />
-    <po-button p-label="Salvar" p-icon="an an-check" p-kind="primary" (p-click)="save()" />
-  </ng-container>
+<po-page-default
+  appPageA11y
+  [p-title]="title"
+  [p-breadcrumb]="breadcrumb()"
+  [p-actions]="actions()"
+>
+  @if (loading()) {
+    <app-load-state [loading]="true" />
+  }
 
   <form [formGroup]="form" (ngSubmit)="save()">
     <div class="po-row">
@@ -13,7 +17,7 @@
           appErrorId="title-error"
           p-label="Título"
           p-placeholder="Resumo do que você precisa"
-          [p-maxlength]="120"
+          [p-maxlength]="titleMax"
           [p-required]="true"
           [p-show-required]="true"
         />
@@ -41,8 +45,9 @@
           appErrorId="description-error"
           p-label="Descrição"
           p-placeholder="Descreva a necessidade com os detalhes que ajudam no atendimento"
+          [p-help]="descriptionHelp()"
           [p-rows]="6"
-          [p-maxlength]="2000"
+          [p-maxlength]="descriptionMax"
           [p-required]="true"
           [p-show-required]="true"
         />
@@ -50,4 +55,6 @@
       </div>
     </div>
   </form>
-</app-page>
+</po-page-default>
+
+<app-confirm-dialog />

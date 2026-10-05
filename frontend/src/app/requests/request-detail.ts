@@ -1,9 +1,14 @@
 import { DatePipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
-  PoButtonModule,
+  PoBreadcrumb,
   PoNotificationService,
+  PoPageAction,
+  PoPageModule,
+  PoTableColumn,
+  PoTableModule,
   PoTagModule,
   PoTagType,
 } from '@po-ui/ng-components';
@@ -11,21 +16,33 @@ import { REQUEST_STATUS_LABELS, RequestDetail, RequestStatus } from '@portal/sha
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
 import { ConfirmDialog } from '../core/confirm-dialog';
+import { PageA11y, TableA11y } from '../core/po-a11y';
 import { PortalApi } from '../core/portal-api';
-import { Page } from '../layout/page';
+import { LoadState } from '../layout/load-state';
 import {
   ADVANCE_LABEL,
+  assigneeName,
   canModify,
   DATE_TIME_FORMAT,
-  isOverdue,
+  listTitle,
   nextStatusFor,
+  OVERDUE_LABEL,
   STATUS_TAG_TYPE,
   transitionLabel,
 } from './request-view';
 
 @Component({
   selector: 'app-request-detail',
-  imports: [DatePipe, RouterLink, Page, ConfirmDialog, PoButtonModule, PoTagModule],
+  imports: [
+    DatePipe,
+    LoadState,
+    ConfirmDialog,
+    PoPageModule,
+    PoTableModule,
+    PoTagModule,
+    PageA11y,
+    TableA11y,
+  ],
   templateUrl: './request-detail.html',
   styleUrl: './request-detail.scss',
 })
@@ -37,28 +54,72 @@ export class RequestDetailPage {
 
   private readonly id = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
   private readonly dialog = viewChild.required(ConfirmDialog);
-  private readonly page = viewChild.required(Page);
+  private readonly page = viewChild.required(PageA11y);
 
   protected readonly dateTimeFormat = DATE_TIME_FORMAT;
   protected readonly statusLabels = REQUEST_STATUS_LABELS;
   protected readonly statusTagType = STATUS_TAG_TYPE;
   protected readonly danger = PoTagType.Danger;
-  protected readonly advanceLabel = ADVANCE_LABEL;
+  protected readonly overdueLabel = OVERDUE_LABEL;
 
   protected readonly request = signal<RequestDetail | null>(null);
+  protected readonly loading = signal(true);
+  protected readonly error = signal<string | null>(null);
+
+  protected readonly breadcrumb = computed<PoBreadcrumb>(() => ({
+    items: [
+      { label: listTitle(this.auth.user()), link: '/solicitacoes' },
+      { label: this.request()?.code ?? 'Solicitação' },
+    ],
+  }));
+
+  // O primeiro botão é o principal; o PO UI mostra os três lado a lado e, no celular, guarda o
+  // segundo e o terceiro em "Outras ações".
+  protected readonly actions = computed<PoPageAction[]>(() => {
+    const next = this.nextStatus();
+    return [
+      ...(next
+        ? [{ label: ADVANCE_LABEL[next], kind: 'primary', action: () => this.confirmAdvance(next) }]
+        : []),
+      ...(this.canModify()
+        ? [
+            { label: 'Editar', kind: 'secondary', action: () => this.edit() },
+            {
+              label: 'Excluir',
+              kind: 'secondary',
+              type: 'danger',
+              action: () => this.confirmRemove(),
+            },
+          ]
+        : []),
+    ];
+  });
+
+  // O histórico só cresce no fim e já vem em ordem.
+  protected readonly historyColumns: PoTableColumn[] = [
+    { property: 'changedAt', label: 'Quando', type: 'dateTime', format: DATE_TIME_FORMAT },
+    { property: 'change', label: 'O que mudou' },
+    { property: 'changedBy', label: 'Quem' },
+  ];
 
   protected readonly title = computed(() => {
     const request = this.request();
     return request ? `${request.code} — ${request.title}` : 'Solicitação';
   });
 
+  protected readonly assignee = computed(() => {
+    const request = this.request();
+    return request ? assigneeName(request) : '';
+  });
+
   protected readonly overdue = computed(() => {
     const request = this.request();
-    return request !== null && isOverdue(request);
+    return request?.overdue ?? false;
   });
 
   // Os botões dependem de quem está vendo e da situação da solicitação:
-  // o atendente avança o status; o dono edita e exclui enquanto está em Aberto.
+  // o atendente avança o status (regras em request-view.ts); o dono edita e exclui enquanto
+  // está em Aberto.
   protected readonly nextStatus = computed(() => {
     const request = this.request();
     return request ? nextStatusFor(this.auth.user(), request) : null;
@@ -81,15 +142,37 @@ export class RequestDetailPage {
     this.load();
   }
 
-  private load(): void {
+  protected load(): void {
+    // Endereço com id que não é número: nem pergunta à API.
+    if (!Number.isInteger(this.id) || this.id < 1) {
+      this.leave('Solicitação não encontrada.');
+      return;
+    }
+    this.loading.set(true);
+    this.error.set(null);
     this.api.getRequest(this.id).subscribe({
-      next: (request) => this.request.set(request),
-      // Não existe (404) ou é de outro colaborador (403): avisa e volta para a lista.
+      next: (request) => {
+        this.request.set(request);
+        this.loading.set(false);
+      },
       error: (error: unknown) => {
-        this.notification.error(errorMessage(error));
-        void this.router.navigate(['/solicitacoes']);
+        this.loading.set(false);
+        // Não existe ou é de outro colaborador (a API responde 404 aos dois, para não revelar
+        // que existe): avisa e volta para a lista. Outra falha (servidor fora do ar) não diz
+        // nada sobre a solicitação: a pessoa fica aqui e pode tentar de novo.
+        const status = error instanceof HttpErrorResponse ? error.status : 0;
+        if (status === 404) {
+          this.leave(errorMessage(error));
+        } else {
+          this.error.set(errorMessage(error));
+        }
       },
     });
+  }
+
+  private leave(message: string): void {
+    this.notification.error(message);
+    void this.router.navigate(['/solicitacoes']);
   }
 
   protected edit(): void {
@@ -100,7 +183,12 @@ export class RequestDetailPage {
     this.dialog().ask(
       {
         title: ADVANCE_LABEL[next],
-        message: `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}". Essa mudança não pode ser desfeita.`,
+        // Quem inicia o atendimento vira o responsável: só ele poderá concluir.
+        message:
+          next === 'IN_PROGRESS'
+            ? `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}" e você será o responsável por ela. Essa mudança não pode ser desfeita.`
+            : `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}". Essa mudança não pode ser desfeita.`,
+        confirmLabel: ADVANCE_LABEL[next],
       },
       () => this.advance(next),
     );
@@ -127,6 +215,7 @@ export class RequestDetailPage {
       {
         title: 'Excluir solicitação',
         message: `Excluir ${request.code} — ${request.title}? Essa ação não pode ser desfeita.`,
+        confirmLabel: 'Excluir',
       },
       () => this.remove(request),
     );

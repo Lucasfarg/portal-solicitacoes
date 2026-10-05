@@ -1,5 +1,5 @@
 // Estilos globais do app. O tema do PO UI é carregado antes (angular.json); aqui ficam os
-// ajustes de contraste sobre o tema e o visual das peças escritas com HTML nativo.
+// ajustes de contraste sobre o tema e o visual dos poucos links escritos com HTML nativo.
 
 // O tema usa um cinza claro no texto de exemplo dos campos (1,84:1 sobre branco); este passa
 // de 4,5:1, o mínimo da WCAG para texto. O tema define a variável no próprio campo
@@ -15,12 +15,10 @@ body {
   color: var(--color-neutral-dark-90);
 }
 
-// Indicador de foco dos elementos nativos (os componentes do PO UI têm o deles).
+// Indicador de foco dos links nativos e do título da tela, que recebe o foco a cada troca de
+// tela (os componentes do PO UI têm o deles).
 .link:focus-visible,
-.native-button:focus-visible,
-.native-field .po-input:focus-visible,
-.table-scroll:focus-visible,
-h1:focus-visible {
+.po-page-header-title:focus-visible {
   outline: 2px solid var(--color-action-focus);
   outline-offset: 2px;
 }
@@ -37,71 +35,22 @@ h1:focus-visible {
   }
 }
 
-// Botão nativo com a aparência de um botão secundário. Usado onde o botão precisa de um
-// atributo ARIA que o po-button não repassa (aria-expanded, aria-pressed).
-.native-button {
-  min-height: 44px;
-  padding: 0 var(--spacing-sm);
-  border: 1px solid var(--color-action-default);
-  border-radius: var(--border-radius-md);
-  background: var(--color-neutral-light-00);
-  color: var(--color-action-default);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--color-brand-01-lightest);
-  }
+// Dois ajustes de contraste e de alvo de clique sobre o tema: o item atual da trilha de
+// navegação usa um cinza de 4,32:1, e os links da tabela e da trilha têm 19 px de altura (a
+// WCAG 2.5.8 pede 24 px).
+.po-breadcrumb-item-activate {
+  color: var(--color-neutral-dark-70);
 }
 
-// Campo nativo (usuário, senha, data) com o rótulo em cima, no desenho dos campos do PO UI.
-.native-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-
-  .po-label {
-    font-weight: 600;
-  }
-
-  .po-input {
-    box-sizing: border-box;
-    width: 100%;
-    min-height: 44px;
-    padding: 0 var(--spacing-xs);
-    border: 1px solid var(--color-neutral-dark-70);
-    border-radius: var(--border-radius-md);
-    font: inherit;
-    color: inherit;
-  }
+.po-breadcrumb .po-link,
+.po-table-link .po-link {
+  display: inline-block;
+  padding-block: 3px;
 }
 
-// Tabela nativa. A moldura rola de lado quando a tabela não cabe e recebe foco, para que a
-// rolagem funcione também pelas setas do teclado.
-.table-scroll {
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-bottom: 1px solid var(--color-neutral-light-20);
-    text-align: left;
-    vertical-align: middle;
-  }
-
-  th {
-    font-weight: 700;
-  }
-
-  tbody tr:nth-child(even) {
-    background: var(--color-neutral-light-05);
-  }
+// Os dias do mês vizinho no calendário do po-datepicker saem com 1,9:1; este cinza passa de 4,5:1.
+.po-calendar-box-foreground-other-month {
+  color: var(--color-neutral-dark-70);
 }
 
 // Quem pediu menos movimento ao sistema não recebe as animações do tema.

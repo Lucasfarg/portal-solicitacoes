@@ -64,8 +64,7 @@ export class RequestsController {
   @Get(':id')
   @ApiOperation({ summary: 'Detalhe com o histórico de status' })
   @ApiOkResponse({ standardSchema: requestDetailSchema })
-  @ApiForbiddenResponse({ description: 'Solicitação de outro colaborador' })
-  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
+  @ApiNotFoundResponse({ description: 'Solicitação inexistente, excluída ou de outro colaborador' })
   findOne(
     @CurrentUser() user: AuthUser,
     @Param('id', { schema: idSchema }) id: number,
@@ -76,8 +75,8 @@ export class RequestsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Edita título, descrição ou categoria (só o dono, só em Aberto)' })
   @ApiOkResponse({ standardSchema: requestDetailSchema })
-  @ApiForbiddenResponse({ description: 'Quem pede não é o dono' })
-  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
+  @ApiForbiddenResponse({ description: 'Atendente que não é o dono' })
+  @ApiNotFoundResponse({ description: 'Solicitação inexistente, excluída ou de outro colaborador' })
   @ApiConflictResponse({ description: 'A solicitação não está mais em Aberto' })
   update(
     @CurrentUser() user: AuthUser,
@@ -89,10 +88,12 @@ export class RequestsController {
 
   @Delete(':id')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Exclui a solicitação (só o dono, só em Aberto)' })
+  @ApiOperation({
+    summary: 'Exclui a solicitação (só o dono, só em Aberto); a linha fica no banco com deleted_at',
+  })
   @ApiNoContentResponse()
-  @ApiForbiddenResponse({ description: 'Quem pede não é o dono' })
-  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
+  @ApiForbiddenResponse({ description: 'Atendente que não é o dono' })
+  @ApiNotFoundResponse({ description: 'Solicitação inexistente, excluída ou de outro colaborador' })
   @ApiConflictResponse({ description: 'A solicitação não está mais em Aberto' })
   remove(
     @CurrentUser() user: AuthUser,
@@ -103,11 +104,14 @@ export class RequestsController {
 
   @Patch(':id/status')
   @ApiOperation({
-    summary: 'Avança o status: Aberto → Em Atendimento → Concluído (só atendente)',
+    summary:
+      'Avança o status: Aberto → Em Atendimento → Concluído (só atendente; quem inicia vira o responsável e só ele conclui)',
   })
   @ApiOkResponse({ standardSchema: requestDetailSchema })
-  @ApiForbiddenResponse({ description: 'Quem pede não é atendente' })
-  @ApiNotFoundResponse({ description: 'Solicitação não encontrada' })
+  @ApiForbiddenResponse({
+    description: 'Quem pede não é atendente, abriu a solicitação ou não é o responsável',
+  })
+  @ApiNotFoundResponse({ description: 'Solicitação inexistente, excluída ou de outro colaborador' })
   @ApiConflictResponse({ description: 'Transição inválida (pular etapa ou voltar)' })
   changeStatus(
     @CurrentUser() user: AuthUser,

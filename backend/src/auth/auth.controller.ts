@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
 import {
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -8,17 +8,17 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import {
   type AuthUser,
   authUserSchema,
   type LoginInput,
   loginSchema,
   problemDetailsSchema,
+  SESSION_IDLE_HEADER,
+  SESSION_REMAINING_HEADER,
 } from '@portal/shared';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
-import type { AuthenticatedRequest } from './auth.types.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { Public } from './public.decorator.js';
 import { SessionService } from './session.service.js';
@@ -34,8 +34,6 @@ export class AuthController {
   ) {}
 
   @Public()
-  // Limite de tentativas por IP (configurado no AuthModule).
-  @UseGuards(ThrottlerGuard)
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Abre a sessão e devolve o cookie' })
@@ -45,25 +43,43 @@ export class AuthController {
     standardSchema: problemDetailsSchema,
   })
   @ApiForbiddenResponse({ description: 'Sem o cabeçalho X-Requested-With' })
-  @ApiTooManyRequestsResponse({ description: 'Mais de 5 tentativas em um minuto' })
+  @ApiTooManyRequestsResponse({
+    description:
+      '5 erros no mesmo usuário vindos do mesmo IP, ou 20 erros do mesmo IP somando os usuários, em um minuto',
+  })
   async login(
     @Body({ schema: loginSchema }) body: LoginInput,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthUser> {
-    const { token, user } = await this.auth.login(body);
+    const { token, user } = await this.auth.login(body, request.ip ?? 'desconhecido');
+    // Quem entra de novo no mesmo navegador não deixa a sessão anterior viva no banco.
+    const previous = this.cookie.read(request);
+    if (previous) {
+      await this.sessions.revoke(previous);
+    }
     this.cookie.set(response, token, this.sessions.absoluteMs);
+    // Sessão nova: o tempo inteiro pela frente (o AuthGuard informa o mesmo nas demais rotas).
+    response.setHeader(SESSION_IDLE_HEADER, String(this.sessions.idleMs / 60_000));
+    response.setHeader(SESSION_REMAINING_HEADER, String(this.sessions.idleMs / 1000));
     return user;
   }
 
+  // Pública: quem clica em Sair com a sessão já vencida também sai (204), e o cookie é limpo.
+  // A defesa CSRF continua valendo: outro site não consegue derrubar a sessão de ninguém.
+  @Public()
   @Post('logout')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Encerra a sessão no servidor e limpa o cookie' })
+  @ApiOperation({ summary: 'Encerra a sessão no servidor (se houver) e limpa o cookie' })
   @ApiNoContentResponse()
   async logout(
-    @Req() request: AuthenticatedRequest,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
-    await this.sessions.revoke(request.sessionToken);
+    const token = this.cookie.read(request);
+    if (token) {
+      await this.sessions.revoke(token);
+    }
     this.cookie.clear(response);
   }
 

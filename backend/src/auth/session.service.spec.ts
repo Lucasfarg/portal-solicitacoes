@@ -13,7 +13,7 @@ describe('SessionService', () => {
   const session = {
     create: vi.fn(),
     findUnique: vi.fn(),
-    update: vi.fn(),
+    updateMany: vi.fn(),
     deleteMany: vi.fn(),
   };
   const config = {
@@ -21,12 +21,12 @@ describe('SessionService', () => {
   };
   let service: SessionService;
 
-  function storedSession(lastSeenAgoMs: number, expiresInMs: number) {
+  function storedSession(lastSeenAgoMs: number, expiresInMs: number, active = true) {
     return {
       id: 1,
       lastSeenAt: new Date(NOW.getTime() - lastSeenAgoMs),
       expiresAt: new Date(NOW.getTime() + expiresInMs),
-      user: { ...user, passwordHash: 'hash', createdAt: NOW },
+      user: { ...user, passwordHash: 'hash', active, createdAt: NOW },
     };
   }
 
@@ -52,6 +52,7 @@ describe('SessionService', () => {
       data: {
         tokenHash: hashToken(token),
         userId: user.id,
+        createdAt: NOW,
         lastSeenAt: NOW,
         expiresAt: new Date(NOW.getTime() + 8 * HOUR),
       },
@@ -61,20 +62,33 @@ describe('SessionService', () => {
   it('devolve o usuário de uma sessão válida, sem expor o hash da senha', async () => {
     session.findUnique.mockResolvedValue(storedSession(10_000, HOUR));
 
-    await expect(service.validate('token')).resolves.toEqual(user);
+    // last_seen_at não avançou (usado há 10 s): faltam 30 min menos esses 10 s.
+    await expect(service.validate('token')).resolves.toEqual({
+      user,
+      remainingMs: 30 * MINUTE - 10_000,
+    });
     expect(session.findUnique).toHaveBeenCalledWith({
       where: { tokenHash: hashToken('token') },
       include: { user: true },
     });
-    expect(session.update).not.toHaveBeenCalled();
+    expect(session.updateMany).not.toHaveBeenCalled();
   });
 
   it('renova last_seen_at quando o último uso foi há mais de um minuto', async () => {
     session.findUnique.mockResolvedValue(storedSession(5 * MINUTE, HOUR));
 
-    await service.validate('token');
+    await expect(service.validate('token')).resolves.toEqual({ user, remainingMs: 30 * MINUTE });
 
-    expect(session.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { lastSeenAt: NOW } });
+    expect(session.updateMany).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { lastSeenAt: NOW },
+    });
+  });
+
+  it('perto do limite absoluto, o tempo restante é o que falta para ele', async () => {
+    session.findUnique.mockResolvedValue(storedSession(5 * MINUTE, 10 * MINUTE));
+
+    await expect(service.validate('token')).resolves.toEqual({ user, remainingMs: 10 * MINUTE });
   });
 
   it('recusa um token desconhecido', async () => {
@@ -92,6 +106,13 @@ describe('SessionService', () => {
 
   it('expira e apaga a sessão no limite absoluto, mesmo em uso', async () => {
     session.findUnique.mockResolvedValue(storedSession(1_000, 0));
+
+    await expect(service.validate('token')).resolves.toBeNull();
+    expect(session.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });
+  });
+
+  it('apaga a sessão de usuário desativado, mesmo dentro do prazo', async () => {
+    session.findUnique.mockResolvedValue(storedSession(1_000, HOUR, false));
 
     await expect(service.validate('token')).resolves.toBeNull();
     expect(session.deleteMany).toHaveBeenCalledWith({ where: { id: 1 } });

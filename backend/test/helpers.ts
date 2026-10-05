@@ -6,6 +6,7 @@ import { configureApp } from '../src/app.setup.js';
 import { hashPassword } from '../src/auth/password.js';
 import { SessionService } from '../src/auth/session.service.js';
 import { SessionCookie } from '../src/auth/session-cookie.js';
+import { PortalExpressAdapter } from '../src/common/http-adapter.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 export const PASSWORD = 'Senha@123';
@@ -16,7 +17,7 @@ export const CSRF = { [CSRF_HEADER]: CSRF_HEADER_VALUE };
 // A aplicação inteira, configurada como em produção, contra o PostgreSQL do Testcontainers.
 export async function createTestApp(): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  const app = moduleRef.createNestApplication<NestExpressApplication>(new PortalExpressAdapter());
   configureApp(app);
   await app.init();
   return app;
@@ -24,7 +25,7 @@ export async function createTestApp(): Promise<NestExpressApplication> {
 
 export async function resetDatabase(app: NestExpressApplication) {
   await app.get(PrismaService).$executeRaw`
-    TRUNCATE users, sessions, categories, requests, request_status_history
+    TRUNCATE users, sessions, categories, requests, request_status_history, login_failures
     RESTART IDENTITY CASCADE`;
 }
 

@@ -29,14 +29,19 @@ enum RequestStatus {
 model User {
   id           Int      @id @default(autoincrement())
   name         String   @db.VarChar(120)
-  username     String   @unique @db.VarChar(40)
+  // citext: o banco compara sem diferenciar maiúsculas ("Ana" e "ana" são o mesmo login).
+  username     String   @unique @db.Citext
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         UserRole @default(REQUESTER)
+  // Quem sai da empresa é desativado, não apagado: as solicitações e o histórico ficam.
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  sessions      Session[]
-  requests      Request[]
-  statusChanges RequestStatusHistory[]
+  sessions         Session[]
+  // Duas relações com Request: as que a pessoa abriu e as que ela atende.
+  requests         Request[]              @relation("RequestRequester")
+  assignedRequests Request[]              @relation("RequestAssignee")
+  statusChanges    RequestStatusHistory[]
 
   @@map("users")
 }
@@ -55,12 +60,15 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  // Para a limpeza das sessões vencidas.
+  @@index([expiresAt])
   @@map("sessions")
 }
 
 model Category {
   id       Int     @id @default(autoincrement()) @db.SmallInt
-  name     String  @unique @db.VarChar(60)
+  // citext: "TI" e "ti" não podem coexistir.
+  name     String  @unique @db.Citext
   active   Boolean @default(true)
   // Prazo de atendimento, em horas, das solicitações desta categoria.
   slaHours Int     @map("sla_hours") @db.SmallInt
@@ -76,20 +84,31 @@ model Request {
   description String
   categoryId  Int           @map("category_id") @db.SmallInt
   requesterId Int           @map("requester_id")
+  // Atendente que iniciou o atendimento; nulo só em Aberto (CHECK no banco).
+  assigneeId  Int?          @map("assignee_id")
   status      RequestStatus @default(OPEN)
-  // Prazo calculado na abertura (created_at + sla_hours da categoria).
+  // Prazo calculado na abertura: sla_hours da categoria contadas em horas úteis.
   dueAt       DateTime      @map("due_at") @db.Timestamptz(3)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // Exclusão lógica: preenchido quando o dono exclui; a linha e o histórico ficam.
+  deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
 
   category  Category               @relation(fields: [categoryId], references: [id])
-  requester User                   @relation(fields: [requesterId], references: [id])
+  requester User                   @relation("RequestRequester", fields: [requesterId], references: [id])
+  assignee  User?                  @relation("RequestAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   history   RequestStatusHistory[]
 
-  @@index([status])
+  // Lista do colaborador: WHERE requester_id = ? ORDER BY created_at DESC.
+  @@index([requesterId, createdAt(sort: Desc)])
+  // Lista do atendente, ordenada pela abertura, e filtro por período.
+  @@index([createdAt(sort: Desc)])
+  // Fora do prazo (painel e filtro): status <> 'DONE' AND due_at < agora.
+  @@index([status, dueAt])
+  // Chave estrangeira: conferência do RESTRICT e filtro por categoria.
   @@index([categoryId])
-  @@index([requesterId])
-  @@index([createdAt])
+  // Chave estrangeira: sem índice, apagar um usuário varreria requests para conferir o RESTRICT.
+  @@index([assigneeId])
   @@map("requests")
 }
 
@@ -107,4 +126,21 @@ model RequestStatusHistory {
 
   @@index([requestId, changedAt])
   @@map("request_status_history")
+}
+
+// Logins que erraram no último minuto, para o limite de tentativas (auth/login-throttle.ts).
+// No banco, e não na memória, para valer com várias instâncias da API e depois de um reinício.
+model LoginFailure {
+  id       Int      @id @default(autoincrement())
+  // Texto do IP; 45 caracteres cabem o IPv6 mais longo.
+  ip       String   @db.VarChar(45)
+  // O login tentado, exista ou não; citext para "Ana" e "ana" contarem juntos.
+  username String   @db.Citext
+  failedAt DateTime @map("failed_at") @db.Timestamptz(3)
+
+  // Erros do mesmo usuário vindos do mesmo IP no último minuto.
+  @@index([username, ip, failedAt])
+  // Erros do mesmo IP somando todos os usuários.
+  @@index([ip, failedAt])
+  @@map("login_failures")
 }

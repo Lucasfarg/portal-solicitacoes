@@ -12,7 +12,7 @@ export class DashboardController {
   @Get('summary')
   @ApiOperation({
     summary:
-      'Totais por status, atrasadas e tempo médio de atendimento, no escopo de quem consulta',
+      'Totais por status, atrasos e tempos médios (até o início e até a conclusão), no escopo de quem consulta',
   })
   @ApiOkResponse({ standardSchema: dashboardSummarySchema })
   summary(@CurrentUser() user: AuthUser): Promise<DashboardSummary> {

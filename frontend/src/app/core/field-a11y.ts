@@ -4,7 +4,8 @@ import { NgControl } from '@angular/forms';
 // Liga um campo à sua mensagem de erro para quem usa leitor de tela. Vai no próprio campo
 // (um <input> nativo ou um componente do PO UI, que não oferece essa ligação) e grava no
 // controle nativo:
-// - aria-describedby com o id da mensagem (o app-field-error logo abaixo do campo);
+// - aria-describedby com o id da mensagem (o app-field-error logo abaixo do campo), somado
+//   ao que o componente já tinha ali (o texto de ajuda do PO UI, por exemplo);
 // - aria-invalid, verdadeiro quando a pessoa já passou pelo campo e ele está inválido.
 @Directive({ selector: '[appErrorId]' })
 export class FieldA11y {
@@ -18,8 +19,15 @@ export class FieldA11y {
     afterEveryRender(() => {
       const native = nativeControl(this.host.nativeElement);
       const invalid = Boolean(this.control.touched && this.control.invalid);
-      native?.setAttribute('aria-describedby', this.errorId());
-      native?.setAttribute('aria-invalid', String(invalid));
+      if (!native) {
+        return;
+      }
+      const described = (native.getAttribute('aria-describedby') ?? '').split(/\s+/);
+      if (!described.includes(this.errorId())) {
+        const ids = [...described.filter(Boolean), this.errorId()];
+        native.setAttribute('aria-describedby', ids.join(' '));
+      }
+      native.setAttribute('aria-invalid', String(invalid));
     });
   }
 }

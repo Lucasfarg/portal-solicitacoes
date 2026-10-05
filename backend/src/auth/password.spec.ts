@@ -14,7 +14,7 @@ describe('senhas', () => {
     await expect(verifyPassword(hash, 'senha@123')).resolves.toBe(false);
   });
 
-  it('recusa, sem lançar erro, um hash malformado', async () => {
-    await expect(verifyPassword('não é um hash', 'Senha@123')).resolves.toBe(false);
+  it('hash malformado é erro de verdade, não "senha errada"', async () => {
+    await expect(verifyPassword('não é um hash', 'Senha@123')).rejects.toThrow();
   });
 });

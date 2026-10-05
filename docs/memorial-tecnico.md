@@ -4,11 +4,11 @@ Portal de Solicitações Internas — Lucas Farias
 
 ## 1. Visão geral
 
-O portal permite que colaboradores registrem demandas internas e acompanhem cada uma até a conclusão, e que atendentes vejam todas as demandas e avancem o status delas. É um processo simples de atendimento: abertura, atendimento, conclusão, com histórico de quem fez cada passo, prazo por categoria e um painel com os números.
+O portal permite que colaboradores registrem demandas internas e acompanhem cada uma até a conclusão, e que atendentes vejam todas as demandas e avancem o status delas. É um processo simples de atendimento: abertura, atendimento, conclusão, com histórico de quem fez cada passo, um responsável por atendimento, prazo por categoria em horas úteis e um painel com os números.
 
 A solução tem três partes no mesmo repositório: uma API REST (`backend/`), uma SPA que consome essa API (`frontend/`) e um pacote de schemas e tipos usado pelas duas (`shared/`). Um `docker compose up` sobe o banco, a API e a web sem configuração.
 
-Procurei a solução mais simples que atendesse ao enunciado inteiro e que eu conseguisse explicar linha a linha. Onde adicionei algo além do pedido (prazo por categoria, atrasadas e tempo médio no painel), foi porque custava pouco e aproxima o projeto do dia a dia de quem trabalha com processos e SLAs.
+Procurei a solução mais simples que atendesse ao enunciado inteiro. O que vai além do pedido (responsável pelo atendimento, prazo por categoria, fora do prazo e tempos médios no painel, exclusão lógica) existe porque um processo de atendimento precisa responder quem está cuidando de cada pedido, se o prazo está sendo cumprido e o que foi excluído.
 
 ## 2. Tecnologias utilizadas
 
@@ -21,7 +21,7 @@ Procurei a solução mais simples que atendesse ao enunciado inteiro e que eu co
 | Banco de dados | PostgreSQL | 18 |
 | Validação e contrato | Zod, em `shared/` | 4.6 |
 | Autenticação | Sessão no servidor, cookie HttpOnly, senhas com Argon2id | `argon2` 0.45 |
-| Proteções HTTP | Helmet, `@nestjs/throttler` | 8.3, 6.7 |
+| Proteções HTTP | Helmet | 8.3 |
 | Documentação da API | Swagger (`@nestjs/swagger`) | 12.0 |
 | Frontend | Angular | 21.2 |
 | Componentes de interface | PO UI | 21.31 |
@@ -39,7 +39,7 @@ Para cada tecnologia: por que escolhi, o que ela resolve neste projeto, o que pe
 
 ### TypeScript e Node.js
 
-Uma linguagem só na API e no frontend permite compartilhar os schemas de validação e os tipos entre os dois lados, e é a linguagem com que trabalho hoje. C# e Java são comuns em sistemas corporativos, mas trariam um segundo ecossistema para o mesmo repositório e me obrigariam a duplicar o contrato da API à mão. O Node 24 é a versão LTS vigente na data da entrega.
+Uma linguagem só na API e no frontend permite compartilhar os schemas de validação e os tipos entre os dois lados. C# e Java são comuns em sistemas corporativos, mas trariam um segundo ecossistema para o mesmo repositório e me obrigariam a duplicar o contrato da API à mão. O Node 24 é a versão LTS vigente na data da entrega.
 
 ### NestJS
 
@@ -51,11 +51,11 @@ O enunciado pede banco SQL. O PostgreSQL é gratuito, tem imagem oficial para o 
 
 ### Prisma ORM
 
-O Prisma gera as migrações como arquivos `.sql` versionados, que são os scripts de criação pedidos na entrega, e gera os tipos das consultas a partir do schema, de modo que um nome de coluna errado é erro de compilação. Das alternativas, o TypeORM mistura o modelo de domínio com a persistência em decorators, e o Drizzle ainda não tinha versão 1.0 estável na data da escolha. Onde o ORM atrapalharia, usei SQL direto: as duas consultas do painel estão escritas à mão em `dashboard.service.ts`, com parâmetros, porque são agregações que ficam mais claras em SQL.
+O Prisma gera as migrações como arquivos `.sql` versionados, que são os scripts de criação pedidos na entrega, e gera os tipos das consultas a partir do schema, de modo que um nome de coluna errado é erro de compilação. Das alternativas, o TypeORM mistura o modelo de domínio com a persistência em decorators, e o Drizzle ainda não tinha versão 1.0 estável na data da escolha. Onde o ORM atrapalharia, usei SQL direto: a contagem do painel está escrita à mão em `dashboard.service.ts`, com parâmetros, porque é uma agregação que fica mais clara em SQL (`COUNT(*) FILTER`). Os tempos médios saem do histórico lido pelo Prisma e são calculados no TypeScript, porque contam horas úteis com a mesma função do prazo.
 
 ### Zod em um pacote compartilhado
 
-Os schemas de entrada e saída da API ficam em `shared/` e são usados nos dois lados: a API valida com eles e o frontend valida o formulário com o mesmo schema, exibindo a mesma mensagem que a API devolveria. A alternativa habitual no NestJS, `class-validator`, só funciona no backend e exigiria repetir as regras no frontend. O ganho é de manutenção: mudar o tamanho máximo do título é alterar uma linha, e API, formulário e Swagger mudam juntos.
+Os schemas de entrada e saída da API ficam em `shared/` e são usados nos dois lados: a API valida com eles e o frontend valida o formulário com o mesmo schema, exibindo a mesma mensagem que a API devolveria. A alternativa habitual no NestJS, `class-validator`, só funciona no backend e exigiria repetir as regras no frontend. O ganho é de manutenção: os limites de tamanho são constantes de `shared/` (`TITLE_MAX`, `DESCRIPTION_MAX`), e a validação da API, o formulário (validação, `maxlength` e contador) e o Swagger leem delas. O `CHECK` do banco repete os números na migração, então mudar um limite é alterar a constante e escrever uma migração nova.
 
 ### Sessão no servidor, cookie HttpOnly e Argon2id
 
@@ -63,7 +63,7 @@ O enunciado pede controle de sessão e logout. Com um token opaco guardado em co
 
 ### Helmet, limite de tentativas e Swagger
 
-O Helmet acrescenta os cabeçalhos de segurança HTTP com uma linha. O `@nestjs/throttler` limita o login a 5 tentativas por minuto por IP. O Swagger em `/api/docs` deixa o avaliador exercitar a API pelo navegador sem ler o código, e como é gerado dos schemas Zod não fica desatualizado em relação à validação.
+O Helmet acrescenta os cabeçalhos de segurança HTTP com uma linha. O limite de tentativas de login é uma classe pequena (`auth/login-throttle.ts`) em vez do `@nestjs/throttler`: o throttler conta toda requisição, inclusive os logins certos, e num escritório em que todos saem pelo mesmo IP a sexta pessoa a entrar no mesmo minuto seria bloqueada. Aqui só os erros contam, e eles ficam numa tabela do banco (`login_failures`), então a contagem vale para todas as instâncias da API e continua depois de um reinício. O Swagger em `/api/docs` deixa o avaliador exercitar a API pelo navegador sem ler o código, e como é gerado dos schemas Zod não fica desatualizado em relação à validação; num ambiente exposto ele é desligado com `SWAGGER_ENABLED=false`, porque entrega o mapa inteiro da API.
 
 ### Angular
 
@@ -71,9 +71,9 @@ O Angular é citado na descrição da vaga e é a base do PO UI. Ele traz roteam
 
 ### PO UI
 
-É a biblioteca de componentes da TOTVS, e o uso de Angular com PO UI em widgets do Fluig é uma técnica documentada pela própria TOTVS. Para este projeto ela entrega os campos de formulário, os botões, os cartões do painel, as etiquetas de situação e os avisos, com o visual dos produtos TOTVS. O custo é o tamanho: o pacote inicial do frontend tem 3,4 MB (cerca de 650 kB transferidos), bem mais do que uma biblioteca menor exigiria. Aceitei esse custo pela produtividade e pela proximidade com o ambiente da vaga.
+É a biblioteca de componentes da TOTVS. Para este projeto ela entrega a barra do topo e o menu, o cabeçalho e a trilha de navegação das telas, as tabelas, os campos de formulário, os botões, a janela de confirmação, os cartões do painel, as etiquetas de situação e os avisos, com o visual dos produtos TOTVS. O custo é o tamanho: o pacote inicial do frontend tem 3,4 MB (cerca de 650 kB transferidos), bem mais do que uma biblioteca menor exigiria.
 
-Algumas peças da biblioteca não passaram na verificação de acessibilidade e foram escritas com HTML nativo, mantendo o tema do PO UI: a barra do topo e o menu, o título das telas, a trilha de navegação, o diálogo de confirmação, as tabelas, os campos de data e os campos do login. Os motivos estão na seção 4, em "Acessibilidade".
+Todas as telas usam componentes do PO UI: `po-toolbar` e `po-menu` no layout, `po-page-default` (com `po-breadcrumb`) no cabeçalho, `po-table`, `po-modal` na confirmação, `po-login`, `po-password`, `po-datepicker` e `po-checkbox` nos campos. Onde a verificação de acessibilidade achou defeito num componente, corrigi por cima, com atributos ARIA e diretivas pequenas (`core/po-a11y.ts` e `core/field-a11y.ts`), sem trocar o componente nem escrever outro no lugar. O que não consegui consertar assim está na seção 6, em "Limitações". A lista dos ajustes está na seção 4, em "Acessibilidade".
 
 ### Vitest, Supertest e Testcontainers
 
@@ -89,7 +89,7 @@ Um repositório com três pacotes (`shared`, `backend`, `frontend`) mantém o co
 
 ### Docker Compose e nginx
 
-O critério "executar sem adaptação" é atendido por um `compose.yaml` com três serviços e verificações de saúde: o banco sobe, a API aplica as migrações e o seed e só então a web fica disponível. O nginx serve os arquivos do frontend e encaminha `/api` para a API, o que põe tudo na mesma origem.
+O critério "executar sem adaptação" é atendido por um `compose.yaml` com três serviços e verificações de saúde: o banco sobe, a API aplica as migrações e o seed e só então a web fica disponível. O nginx serve os arquivos do frontend e encaminha `/api` para a API, o que põe tudo na mesma origem. Ele entrega os arquivos comprimidos (gzip): o bundle com o PO UI tem 3,5 MB e trafega com cerca de 680 kB. Os `.js` e `.css`, que levam um hash no nome, ficam um ano no cache do navegador, e o `index.html` é sempre conferido com o servidor. As portas são publicadas só em `127.0.0.1`, porque o compose serve em HTTP, e a API não publica porta nenhuma: só o nginx fala com ela. A verificação de saúde da API dá até dois minutos para as migrações e o seed da primeira subida, para uma máquina lenta não marcar a API como fora do ar. A imagem da API é construída em etapas: as dependências de desenvolvimento ficam na etapa de build, e a imagem final leva só o código compilado, as dependências de produção e as migrações.
 
 ### GitHub Actions
 
@@ -112,26 +112,29 @@ Na API, cada requisição passa por:
 
 1. **Guards globais**: `CsrfGuard` (exige o cabeçalho `X-Requested-With` nos métodos que alteram dados) e `AuthGuard` (exige sessão válida, menos nas rotas marcadas com `@Public()`).
 2. **Controller**: recebe a requisição, valida corpo, parâmetros e filtros com o schema Zod e chama o service. Não tem regra de negócio.
-3. **Service**: busca os dados, aplica as regras e grava. A ordem é sempre a mesma: existe? (404) → pode? (403) → o estado permite? (409).
-4. **Regras**: as regras das solicitações estão em funções puras, sem banco, em `backend/src/requests/request-rules.ts`: quem vê, quem altera, quais mudanças de status valem, como o prazo e o período são calculados. É o arquivo que concentra o negócio e o mais testado.
+3. **Service**: busca os dados, aplica as regras e grava. A ordem é quase sempre a mesma: existe e a pessoa pode vê-la? (404) → pode fazer isso? (403) → o estado permite? (409). A exceção é concluir: a transição é conferida antes (409) e só então se quem conclui é o responsável (403), porque "responsável" só existe a partir de Em Atendimento.
+4. **Regras**: as regras das solicitações estão em funções puras, sem banco. Quem vê, quem altera e quais mudanças de status valem ficam em `shared/src/request-rules.ts`, usadas pela API e pelo frontend; `backend/src/requests/request-rules.ts` transforma cada recusa no erro HTTP e calcula o prazo, as horas úteis e o período do filtro. São os arquivos que concentram o negócio e os mais testados.
 5. **Prisma**: acesso ao banco. O `request.mapper.ts` converte a linha do banco no formato da resposta.
 
 A autorização fica no service, não só na rota: a mesma rota `GET /api/requests` devolve resultados diferentes para colaborador e atendente, e isso é regra de negócio.
 
-No frontend, `core/` concentra o que é transversal (chamadas à API, sessão, interceptor, guards de rota, validação, diálogo de confirmação) e cada tela fica em sua pasta; `layout/` tem a moldura comum (barra, menu e o cabeçalho de cada tela). As permissões no frontend só decidem quais botões aparecem; quem garante é a API.
+No frontend, `core/` concentra o que é transversal (chamadas à API, sessão, interceptor, guards de rota, validação, diálogo de confirmação) e cada tela fica em sua pasta; `layout/` tem a moldura comum (barra, menu e o cabeçalho de cada tela). As permissões no frontend usam as mesmas funções de `shared/` e só decidem quais botões aparecem; quem garante é a API.
 
 ### Acessibilidade
 
-As telas foram conferidas contra a WCAG 2.2 nível AA com o axe-core e com roteiros que usam só o teclado, em 1366, 683 (zoom de 200%), 390 e 320 px. O que isso mudou no código:
+Referência: WCAG 2.2, nível AA. Conferência: o axe-core (regras automáticas) em cada tela e roteiros que percorrem as telas só com o teclado, nas larguras de 1366, 683 (zoom de 200%), 390 e 320 px. O que a conferência mudou no código:
 
-- **Estrutura nativa**: `header`, `nav`, `main` e um `h1` por tela. A cada troca de tela o foco vai para o `h1`, que é também o título da aba, e há um atalho "Pular para o conteúdo".
-- **Menu e Sair** são links e botão de verdade. No `po-menu` o Enter não navegava, e o perfil do `po-toolbar` não recebia foco: não dava para sair sem mouse.
-- **Diálogo de confirmação** sobre o `<dialog>` nativo: o navegador prende o foco, deixa a página de trás inerte, fecha com Esc e devolve o foco ao botão que abriu. O diálogo do PO UI não se apresentava como diálogo ao leitor de tela.
-- **Tabelas nativas**, com o código da solicitação como link. No `po-table` a ação da linha não recebia foco, e a área rolável não era alcançável pelo teclado.
-- **Campos de data e de login nativos**: no `po-datepicker` o foco não entrava no calendário; o `po-login` e o `po-password` não aceitam `autocomplete="username"` e `"current-password"`, e o "mostrar senha" só respondia ao mouse.
+- **Estrutura**: a barra do topo é marcada como `banner` e o menu tem nome ("Menu principal"). O `po-page-default` desenha o título da tela como `h2`; ele recebe `aria-level="1"` para ser o título principal. Na primeira carga e a cada troca de tela o foco vai para esse título, que é também o título da aba, e há um atalho "Pular para o conteúdo".
+- **Menu e Sair**: no `po-menu`, Enter e Espaço num item não navegavam (o componente cancela a tecla e só marca o item), o botão do menu no celular só respondia ao mouse e o menu fechado deixava paradas de Tab fora da tela. Agora os dois teclados navegam, o botão é um botão de verdade, o menu fechado fica inerte e o item da tela atual leva `aria-current`. O "Sair" fica no menu do usuário do `po-toolbar`, cujo ícone de perfil só respondia ao clique; agora o teclado o alcança.
+- **Diálogo de confirmação** sobre o `po-modal`, que prende o foco, fecha com Esc e devolve o foco ao botão que abriu. Ele não se apresentava como diálogo ao leitor de tela: o componente `core/confirm-dialog.ts` grava `role="dialog"`, `aria-modal` e a ligação com o título e a mensagem. O botão de confirmar diz a ação ("Iniciar atendimento", "Excluir"), não "Confirmar". O `po-modal` só leva o foco para dentro se já estiver desenhado; como o app agrupa eventos e desenha no quadro seguinte, forço o desenho antes de abrir.
+- **Trilha de navegação**: no `po-breadcrumb` o item atual era uma parada de Tab sem função e tinha `aria-current` com o texto do item; agora o item é só texto e leva `aria-current="page"`.
+- **Tabelas**: a área do `po-table` que rola de lado não recebia foco nem tinha nome; agora é uma região nomeada, que o teclado alcança. O código da solicitação é um link.
+- **Campos**: no `po-datepicker` os seletores de mês e ano do calendário não tinham rótulo, e Enter no campo não enviava o filtro; agora têm "Mês" e "Ano" e o Enter envia. O `po-login` e o `po-password` não aceitam `autocomplete="username"` e `"current-password"`, e o olho de "mostrar senha" só respondia ao mouse; a diretiva grava o autocomplete e o olho virou um botão. O `po-checkbox` deixava `aria-checked` num elemento sem função, que a diretiva remove.
 - **Erros de formulário**: cada campo aponta para a sua mensagem (`aria-describedby`, `aria-invalid`), e ao salvar com erro o foco vai para o primeiro campo inválido. Nos campos do PO UI essa ligação é feita por uma diretiva pequena (`core/field-a11y.ts`), porque o componente não a oferece.
-- **Sessão**: cinco minutos antes de expirar por falta de uso aparece um aviso com "Continuar conectado", para ninguém perder o que estava digitando.
-- **Resultado da lista** anunciado ao filtrar e paginar (`role="status"`), contraste do texto de exemplo dos campos corrigido e animações desligadas para quem pede menos movimento ao sistema.
+- **Sessão**: cinco minutos antes de expirar por falta de uso (ou na metade do tempo, numa sessão curta) aparece um aviso com "Continuar conectado", para ninguém perder o que estava digitando. A API informa em cada resposta, inclusive nas de erro, o tempo da sessão e quanto falta dele (cabeçalhos `X-Session-Idle-Minutes` e `X-Session-Remaining-Seconds`), então o aviso acompanha `SESSION_IDLE_MINUTES` e o fim real no servidor.
+- **Avisos** (confirmações e erros) ficam 15 segundos na tela, tempo para serem lidos ou ouvidos até o fim.
+- **Lista**: o resultado é anunciado ao filtrar e paginar (`role="status"`), e Esc no campo Título apaga o texto da busca. Se a busca falha, quem anuncia é o aviso de erro, numa região viva que já existe na página, e não "0 solicitações".
+- **Contraste** do texto de exemplo dos campos corrigido e animações desligadas para quem pede menos movimento ao sistema.
 
 ### Estratégia de modelagem de dados
 
@@ -139,12 +142,21 @@ O detalhe de cada tabela está no [dicionário de dados](dicionario-de-dados.md)
 
 - **Categorias em tabela**, com `active` e `sla_hours`. O enunciado fala em categorias sugeridas, então criar ou desativar uma categoria não pode exigir mudança de código.
 - **Status como tipo enumerado**. É um conjunto fechado e amarrado a regras do código; uma tabela daria a impressão de que basta inserir uma linha para criar um status.
-- **Histórico em tabela própria** (`request_status_history`), com uma linha na abertura e uma a cada mudança. É o que permite acompanhar a evolução da solicitação, saber quem fez cada passo e calcular o tempo médio de atendimento.
-- **Prazo gravado na solicitação** (`due_at`), calculado na abertura. Se o SLA da categoria mudar depois, os prazos já assumidos não mudam.
+- **Histórico em tabela própria** (`request_status_history`), com uma linha na abertura e uma a cada mudança. É o que permite acompanhar a evolução da solicitação, saber quem fez cada passo e calcular os tempos médios e as concluídas fora do prazo do painel.
+- **Responsável na solicitação** (`assignee_id`): quem inicia o atendimento. Um `CHECK` amarra a coluna ao status: nula em Aberto, preenchida fora dele.
+- **Prazo gravado na solicitação** (`due_at`), calculado na abertura em horas úteis. Se o SLA da categoria mudar depois, os prazos já assumidos não mudam.
 - **Código `SOL-000001` derivado do identificador** na resposta, sem coluna. Filtrar pelo código não é requisito, e uma coluna a mais seria um dado duplicado para manter.
 - **Chaves inteiras sequenciais**. O que impede um colaborador de ver a solicitação de outro é a autorização, não a dificuldade de adivinhar o identificador.
-- **Datas em UTC** (`timestamptz`), convertidas para o horário local só na tela.
-- **Exclusão física**, permitida só em Aberto, quando ainda não houve atendimento a preservar.
+- **Datas em UTC** (`timestamptz`), convertidas para o horário local só na tela. O fuso da empresa (`APP_TIMEZONE`) entra nas contas que dependem do relógio local: o expediente do prazo e o início de cada dia no filtro por período.
+- **Exclusão lógica** (`deleted_at`), permitida só em Aberto. A solicitação some das telas e do painel, mas a linha e o histórico ficam no banco.
+- **Tentativas de login erradas em tabela** (`login_failures`), sem chave estrangeira, porque o login digitado pode não existir.
+- **Regras também no banco** (`CHECK`): tamanho do título e da descrição, SLA positivo, prazo depois da abertura, histórico coerente (só a abertura não tem status de origem), responsável só fora de Aberto, exclusão só em Aberto. A API valida antes, com a mensagem para a tela; o banco garante porque a API não é o único caminho até ele, e usuários e categorias novos entram por SQL.
+- **Login e nome de categoria em `citext`**: "Ana" e "ana" são o mesmo login, e "TI" e "ti" não coexistem.
+- **Usuário com `active`**, como a categoria: quem sai da empresa é desativado e perde as sessões, e o histórico continua dizendo quem fez o quê.
+- **`status` repetido na solicitação**: é o `to_status` do último registro do histórico, gravado na mesma transação. Assim a lista e o painel leem o status sem juntar o histórico.
+- **Índices pelas consultas reais**: um composto `(requester_id, created_at DESC)` para a lista do colaborador e `(status, due_at)` para "fora do prazo"; não há índice só em `status`, que com três valores quase não filtra.
+- **Gravação condicional**: editar, excluir e mudar status conferem a regra no próprio `WHERE` (`status = 'OPEN'`, ou o status lido, e o responsável na conclusão). Se outra pessoa mudou a solicitação no meio, nada é gravado e a resposta é 409.
+- **Um relógio só**: abertura, prazo, histórico, sessões, "fora do prazo" e o instante que fixa a lista (`asOf`) usam o relógio da API, e a API devolve `overdue` pronto. Assim o painel, o filtro e a etiqueta da tela nunca discordam por diferença de relógio, e um computador com a hora errada não esconde da lista o que acabou de ser aberto.
 
 ### Padrões de projeto utilizados
 
@@ -156,23 +168,23 @@ O detalhe de cada tabela está no [dicionário de dados](dicionario-de-dados.md)
 - **Mapper** entre a linha do banco e a resposta da API, para o formato do banco não vazar para o cliente.
 - **Atualização condicional** na mudança de status: o `UPDATE` inclui o status lido (`WHERE id = ? AND status = ?`). Se outro atendente mudou primeiro, nenhuma linha é alterada, a resposta é 409 e o histórico não duplica.
 - **Interceptor HTTP e guards de rota** no frontend, pelo mesmo motivo dos guards da API.
-- **URL como fonte da verdade** dos filtros da lista: filtros e página ficam na query string, então recarregar, voltar e compartilhar o endereço funcionam.
+- **URL como fonte da verdade** dos filtros da lista: filtros, página e o instante da busca (`asOf`, devolvido pela API na primeira página) ficam na query string, então recarregar, voltar e compartilhar o endereço funcionam e mostram as mesmas linhas.
 
 ### Estratégia de autenticação
 
 - No login a API gera um token aleatório de 32 bytes e o devolve num cookie `HttpOnly; SameSite=Strict; Path=/`. JavaScript não consegue ler o cookie, e o navegador não o envia em requisições vindas de outro site.
 - No banco fica só o SHA-256 do token. Quem conseguir ler a tabela `sessions` não consegue usar as sessões.
-- A sessão expira com 30 minutos sem uso ou 8 horas após o login, o que vier primeiro. O logout apaga a linha no servidor e limpa o cookie. Cada login gera um token novo.
+- A sessão expira com 30 minutos sem uso ou 8 horas após o login, o que vier primeiro. O logout apaga a linha no servidor e limpa o cookie, inclusive com a sessão já vencida (a rota não exige sessão, só o cabeçalho de CSRF). Cada login gera um token novo.
 - As senhas são guardadas como hash Argon2id. A mensagem de erro do login é a mesma para usuário inexistente e senha errada, e a senha é conferida contra um hash fictício quando o usuário não existe, para o tempo de resposta não revelar quais logins estão cadastrados.
-- O login aceita 5 tentativas por minuto por IP (429 depois disso). O nginx sobrescreve o `X-Forwarded-For` com o IP que ele mesmo viu, para o limite não ser contornado forjando o cabeçalho.
+- O login bloqueia (429) quando há, no último minuto, 5 erros no mesmo usuário vindos do mesmo IP, ou 20 erros do mesmo IP somando usuários. Login certo não conta e apaga os erros daquele usuário naquele IP. Cada tentativa grava a sua linha antes de conferir a senha e só então conta: tentativas simultâneas não passam todas pela contagem zerada (a linha sai se a senha estiver certa ou se a tentativa for recusada). Os erros ficam na tabela `login_failures`, e as linhas com mais de um minuto são apagadas a cada tentativa: a contagem vale com várias instâncias da API e sobrevive a um reinício. Usuário desativado recebe a mesma resposta de senha errada, e cada recusa fica no log com o login tentado e o IP, nunca a senha. Entrar de novo no mesmo navegador encerra a sessão anterior. O nginx sobrescreve o `X-Forwarded-For` com o IP que ele mesmo viu, e a API só aceita esse cabeçalho de conexões vindas de `TRUST_PROXY` (no compose, a rede interna, onde a API não publica porta e só o nginx a alcança; fora dele, só a própria máquina), para o limite não ser contornado forjando o cabeçalho.
 - **CSRF**: a API só aceita `POST`, `PATCH` e `DELETE` com o cabeçalho `X-Requested-With: XMLHttpRequest`. Um formulário ou link em outro site não consegue enviar cabeçalho customizado sem autorização de CORS, que a API não concede. É uma das defesas descritas pela OWASP para APIs consumidas por JavaScript; o `SameSite=Strict` fica como segunda camada.
-- Com `HTTPS_ONLY=true` o cookie passa a se chamar `__Host-sid` e ganha `Secure`. No compose fica desligado porque a execução local é em HTTP.
+- Com `HTTPS_ONLY=true` o cookie passa a se chamar `__Host-sid` e ganha `Secure`; é o caminho para produção, atrás de um proxy com certificado. No compose fica desligado porque a execução local é em HTTP, e por isso o compose publica as portas só em `127.0.0.1`: nada dele fica exposto à rede.
 
 ### Comunicação entre frontend e backend
 
-JSON sobre HTTP, na mesma origem, com o cookie de sessão enviado pelo navegador. Todas as chamadas do frontend estão em `core/portal-api.ts`, tipadas com os tipos de `shared/`. Um interceptor acrescenta o cabeçalho de CSRF em toda chamada, recomeça a contagem do aviso de sessão a cada resposta e trata o 401: limpa o usuário, avisa uma vez e leva ao login guardando a tela em que a pessoa estava.
+JSON sobre HTTP, na mesma origem, com o cookie de sessão enviado pelo navegador. Todas as chamadas do frontend estão em `core/portal-api.ts`, tipadas com os tipos de `shared/`. Um interceptor acrescenta o cabeçalho de CSRF em toda chamada, recomeça a contagem do aviso de sessão a cada resposta, inclusive as de erro, com o tempo de sessão e o que falta dele, que a API informa nos cabeçalhos `X-Session-Idle-Minutes` e `X-Session-Remaining-Seconds`, e trata o 401: limpa o usuário, avisa uma vez e leva ao login guardando a tela em que a pessoa estava.
 
-Os erros da API seguem um formato só, o da RFC 9457 (`application/problem+json`), com `status`, `title`, `detail` e, nos erros de validação, `errors` com um item por campo. Os códigos usados: 400 validação, 401 sem sessão, 403 sem permissão, 404 inexistente, 409 o estado não permite, 429 excesso de tentativas de login.
+Os erros da API seguem um formato só, o da RFC 9457 (`application/problem+json`), com `status`, `title`, `detail` e, nos erros de validação, `errors` com um item por campo. Corpo que não é JSON válido também responde 400, em português: o adaptador do Express (`common/http-adapter.ts`) converte o erro do parser na origem. Os códigos usados: 400 validação, 401 sem sessão, 403 sem permissão, 404 inexistente ou fora do alcance de quem pede, 409 o estado não permite, 429 excesso de tentativas de login.
 
 ### Organização do código-fonte
 
@@ -187,7 +199,7 @@ frontend/src/app/
 
 O código (nomes, tabelas, rotas da API) está em inglês; mensagens ao usuário, rotas das telas e comentários, em português. Os comentários explicam o motivo de uma decisão, não o que a linha faz.
 
-Testes: 48 unitários no backend (permissões, as nove combinações de transição de status, prazo, período, sessão, senha, CSRF), 55 e2e da API contra PostgreSQL real e 22 no frontend (guards de rota, interceptor, formulário de solicitação, ligação entre campo e mensagem de erro e aviso de sessão).
+Testes: 72 unitários no backend (permissões, as combinações de transição de status, responsável, prazo e tempos em horas úteis, período no fuso, sessão, senha, limite de login, CSRF), 81 e2e da API contra PostgreSQL real (inclusive as regras do banco e tentativas de login simultâneas) e 33 no frontend (guards de rota, interceptor, formulário de solicitação, ligação entre campo e mensagem de erro, também num po-input real, e aviso de sessão).
 
 ## 5. Regras de negócio e decisões sobre pontos em aberto do enunciado
 
@@ -197,49 +209,59 @@ Testes: 48 unitários no backend (permissões, as nove combinações de transiç
 | Quem vê o quê | Colaborador vê só as solicitações que abriu; atendente vê todas | Uma demanda de RH ou Financeiro pode conter informação pessoal |
 | Quem abre | Qualquer usuário, inclusive atendente | Atendente também é colaborador da empresa |
 | Quem edita ou exclui | Só quem abriu, e só em Aberto | Depois que o atendimento começa, mudar o pedido desalinha quem está atendendo |
-| Quem muda o status | Só atendente | Quem pede não declara o próprio pedido atendido |
-| Fluxo de status | Aberto → Em Atendimento → Concluído, sem pular e sem voltar | É o fluxo do enunciado; reabertura fica como melhoria |
-| Mudança simultânea | Se dois atendentes mudam o mesmo status ao mesmo tempo, o segundo recebe 409 | Evita histórico duplicado |
-| Solicitação de outro colaborador | 403, não 404 | Os identificadores são sequenciais e o código é exibido, então a existência não é segredo; 403 diz o que de fato aconteceu |
-| Prazo | Abertura + SLA da categoria, em horas corridas | Dá ao painel uma medida de atraso com uma coluna só |
-| Troca de categoria na edição | O prazo é refeito com o SLA da nova categoria, contado da abertura | O prazo é da categoria, e o colaborador espera desde a abertura |
-| Atrasada | Não concluída e com o prazo vencido | O cartão mostra o que pede ação agora; concluída fora do prazo não entra |
-| Tempo médio de atendimento | Média da abertura à conclusão, em horas com uma casa decimal; vazio sem concluídas | Sai do histórico, sem dado novo |
-| Painel | Seis números (total, abertas, em atendimento, concluídas, atrasadas, tempo médio), no escopo de quem vê | Colaborador vê os seus números; atendente, os de todos |
+| Quem muda o status | Só atendente, e nunca numa solicitação que ele mesmo abriu (403) | Quem pede não declara o próprio pedido atendido |
+| Responsável | Quem inicia o atendimento vira o responsável; só ele conclui (403 para outro atendente). As telas mostram "Responsável", ou "Ninguém ainda" em Aberto | Cada solicitação em andamento tem uma pessoa que responde por ela |
+| Fluxo de status | Aberto → Em Atendimento → Concluído, sem pular e sem voltar | É o fluxo do enunciado |
+| Mudança simultânea | Se dois atendentes mudam o mesmo status ao mesmo tempo, o segundo recebe 409 | Evita histórico duplicado e dois responsáveis |
+| Solicitação de outro colaborador | 404, não 403 | Quem não pode ver a solicitação não fica sabendo que aquele número existe |
+| Prazo | SLA da categoria contado em horas úteis: segunda a sexta, das 08:00 às 18:00, no fuso `APP_TIMEZONE`, sem feriados. Aberta fora do expediente, começa a contar no próximo início de expediente | Um pedido aberto na sexta à noite não vence no fim de semana, quando ninguém atende |
+| Troca de categoria na edição | O prazo passa a ser o menor entre o atual e o refeito com o SLA da nova categoria, contado da abertura | Se o prazo pudesse aumentar, bastaria trocar a categoria para tirar a solicitação do atraso |
+| Fora do prazo | Não concluída e com o prazo vencido; tem cartão no painel e filtro na lista | Mostra o que pede ação agora. "Fora do prazo", e não "Atrasada", porque a etiqueta aparece ao lado de "Aberto" e "Em Atendimento", os nomes de status do enunciado |
+| Concluídas fora do prazo | Concluídas depois do prazo; cartão próprio no painel | Mede o prazo cumprido, que o cartão "Fora do prazo" deixa de contar quando a solicitação é concluída |
+| Tempos médios | Até o início (da abertura a Em Atendimento) e até a conclusão (da abertura a Concluído), em horas úteis, a mesma régua do prazo: aberta na sexta às 17h e iniciada na segunda às 9h esperou 2 h, não 64 h; a API devolve horas com uma casa decimal e a tela mostra "N h úteis" (sem converter em dias: 24 h úteis são mais de dois dias de expediente), ou "Sem dados" enquanto não há registros | Separam a espera pela primeira resposta do tempo total, e saem do histórico, sem dado novo |
+| Painel | Oito números (total, um por status, fora do prazo, concluídas fora do prazo, tempo médio até o início, tempo médio até a conclusão), no escopo de quem vê; os cinco primeiros abrem a lista já filtrada | Colaborador vê os seus números; atendente, os de todos |
 | Categoria inexistente ou inativa | 400 apontando o campo `categoryId` | É erro de preenchimento, e o formulário consegue indicar o campo |
-| Filtro por período | Datas no horário de Fortaleza; o último dia entra inteiro | O banco guarda UTC; sem a conversão, uma solicitação aberta às 22h cairia no dia seguinte |
-| Limites | Título de 3 a 120 caracteres; descrição até 2000; 10 itens por página, no máximo 100 | Valores razoáveis para o formulário e para a listagem |
+| Filtro por período | Datas no fuso `APP_TIMEZONE` (padrão `America/Fortaleza`); o último dia entra inteiro | O banco guarda UTC; sem a conversão, uma solicitação aberta às 22h cairia no dia seguinte |
+| Paginação | A primeira página vai sem instante; a API usa o relógio dela, devolve o instante (`asOf`), e a tela o grava na URL. As páginas seguintes só mostram o que foi aberto até ele; filtrar ou limpar os filtros pede um novo | Uma solicitação aberta enquanto alguém pagina não empurra linhas de uma página para a outra |
+| Título | De 3 a 120 caracteres, contados como o banco conta (um emoji é um caractere) | Cabe numa linha da tabela e num assunto de e-mail |
+| Descrição | Até 2000 caracteres | Cerca de uma página de texto: basta para descrever um pedido sem virar documento |
+| Itens por página | 10 por padrão, no máximo 100 | Dez cabem na tela de um notebook sem rolagem; 100 é o teto para a API não devolver páginas enormes |
 | Código | `SOL-000001`, derivado do identificador | Legível para o usuário, sem coluna extra |
-| Exclusão | Física, só em Aberto | Ainda não há atendimento a preservar |
+| Exclusão | Lógica (`deleted_at`), só pelo dono e só em Aberto; a excluída some da lista, do detalhe (404) e do painel | A linha e o histórico ficam no banco, e o que foi excluído continua rastreável |
 | Histórico | Abertura e toda mudança de status, com autor e horário | É o acompanhamento que o enunciado pede |
 
 ## 6. Análise crítica
 
 ### Limitações da solução
 
-- Não há tela de cadastro de usuários nem de categorias, nem troca de senha. Usuários e categorias vêm do seed; incluir outros exige SQL.
-- A solicitação não tem atendente responsável. Qualquer atendente avança qualquer solicitação, e só o histórico diz quem foi.
-- O fluxo é linear: não há reabertura, cancelamento, comentários nem anexos.
-- O prazo é contado em horas corridas, sem considerar expediente, fins de semana ou feriados.
-- O fuso é fixo (Fortaleza, UTC−3). Uma empresa com unidades em outros fusos precisaria do fuso por usuário.
-- O limite de tentativas de login fica na memória do processo: com mais de uma instância da API, cada uma contaria em separado.
-- Sessões expiradas só são apagadas quando alguém tenta usá-las; sessões abandonadas ficam na tabela até uma limpeza manual.
+- Não há tela de cadastro de usuários nem de categorias, nem troca de senha. Usuários e categorias vêm do seed; incluir, desativar ou trocar o SLA exige SQL (as regras do banco valem também aí).
+- Não há comentários nem anexos na solicitação.
+- O responsável é sempre quem iniciou o atendimento; não há como passar a solicitação para outro atendente, e a lista não tem filtro "as que eu atendo".
+- O expediente do prazo é fixo no código (segunda a sexta, das 08:00 às 18:00) e não considera feriados.
+- O fuso é um só para a empresa (`APP_TIMEZONE`); não há fuso por usuário nem por unidade.
+- Não há reabertura nem cancelamento: o enunciado define três status (Aberto, Em Atendimento, Concluído), e um quarto status ou uma volta no fluxo mudaria o que ele pede. O caso "não preciso mais" é coberto pela exclusão em Aberto; uma solicitação concluída por engano é aberta de novo.
+- O histórico registra só as mudanças de status: a edição de título, descrição ou categoria não fica registrada.
+- Sessões expiradas só são apagadas quando alguém tenta usá-las; sessões abandonadas ficam na tabela até uma limpeza manual (`DELETE FROM sessions WHERE expires_at < now()`, que usa o índice em `expires_at`).
 - A busca por título usa `ILIKE` sem índice próprio e a paginação é por deslocamento. Atende ao volume de um portal interno pequeno, não a centenas de milhares de registros.
-- A imagem Docker da API tem cerca de 1,1 GB, porque leva as dependências de desenvolvimento e o CLI do Prisma para aplicar as migrações na subida.
-- Os testes do frontend cobrem guards, interceptor, formulário, ligação campo–erro e aviso de sessão; as telas de lista, detalhe e painel não têm teste automatizado no repositório. A acessibilidade foi conferida com axe-core e roteiros de teclado em Playwright que ainda estão fora do repositório; leitor de tela não foi testado, e regra automática cobre só parte da WCAG.
-- O aviso de sessão perto de expirar usa 25 minutos fixos no frontend; se `SESSION_IDLE_MINUTES` mudar na API, a constante em `core/session-timer.ts` precisa mudar junto.
-- O compose serve em HTTP. HTTPS depende de um proxy com certificado na frente e de `HTTPS_ONLY=true`.
+- Os testes do frontend cobrem guards, interceptor, formulário (inclusive o aviso de alterações não salvas), ligação campo–erro e aviso de sessão; as telas de lista, detalhe e painel não têm teste automatizado no repositório. Os roteiros de axe-core e de teclado que conferiram a acessibilidade não estão no repositório; leitor de tela não foi testado, e regra automática cobre só parte da WCAG.
+- O `po-toolbar` não tem lugar para mostrar o nome e o papel de quem entrou: eles aparecem no alto do menu do usuário, ao abri-lo, e não fixos na barra.
+- Nos cartões do painel, o título do `po-widget` é cortado quando o usuário força o espaçamento de texto da WCAG 1.4.12; não corrigi.
+- A contagem do aviso de sessão é por aba: com duas abas abertas, a que ficou parada avisa e encerra mesmo que a outra esteja em uso.
+- O compose serve em HTTP, só para a própria máquina. Servir na rede exige um proxy com certificado na frente e `HTTPS_ONLY=true`.
+
+### Pontos em aberto
+
+- **Ajustes de acessibilidade por cima do PO UI.** As diretivas de `core/po-a11y.ts` procuram elementos pelas classes internas dos componentes (`po-menu-nav`, `po-page-header-title`, `po-toolbar-profile` e outras). Numa atualização da biblioteca essas classes podem mudar e o ajuste deixa de valer sem erro de compilação; o roteiro de acessibilidade, que não está no repositório, é o que acusaria. Vale rodá-lo a cada atualização do PO UI.
 
 ### Melhorias futuras
 
-- Atribuição da solicitação a um atendente e filtro "minhas".
 - Comentários e anexos, e aviso por e-mail a cada mudança de status.
-- Reabertura e cancelamento, com motivo registrado no histórico.
-- Prazo em horas úteis, com calendário de feriados.
+- Transferência da solicitação para outro atendente e filtro "as que eu atendo".
+- Calendário de feriados e expediente configurável no cálculo do prazo.
 - Telas de administração de categorias e usuários.
-- Exclusão lógica e trilha de auditoria das edições, não só do status.
+- Trilha de auditoria das edições, não só do status.
 - Exportação da lista e gráficos por categoria e período no painel.
-- Testes de tela automatizados no repositório e imagem da API mais enxuta.
+- Testes de tela e de acessibilidade automatizados no repositório.
 
 ### Requisitos que poderiam ser aperfeiçoados
 
@@ -260,6 +282,5 @@ Num projeto real eu levaria esses pontos ao solicitante antes de codificar. Aqui
 - **HTTPS** em todo o caminho, com `HTTPS_ONLY=true`, e segredos em cofre, não em `.env`.
 - **Migrações como etapa do deploy**, não na subida do container, e seed só em ambientes de demonstração.
 - **Observabilidade**: logs estruturados com identificador por requisição, métricas e alertas; backup e teste de restauração do banco.
-- **Limite de tentativas e sessões em armazenamento compartilhado**, para funcionar com várias instâncias, e rotina de limpeza de sessões expiradas.
-- **LGPD**: política de retenção e de acesso, já que solicitações de RH e Financeiro contêm dados pessoais.
-- **Plataforma**: numa empresa que já usa uma plataforma de processos como o Fluig, este fluxo seria modelado como um processo da própria plataforma, aproveitando usuários, papéis e notificações dela, e o que desenvolvi aqui à mão viraria formulário, regras de etapa e indicadores.
+- **Rotina de limpeza** das sessões expiradas, agendada, em vez da limpeza manual.
+- **LGPD**: política de retenção e de acesso, já que solicitações de RH e Financeiro contêm dados pessoais; isso inclui decidir por quanto tempo as solicitações excluídas ficam no banco.

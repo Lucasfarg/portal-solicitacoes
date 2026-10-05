@@ -1,6 +1,9 @@
+import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
+import type { Env } from '../src/config/env.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { dueDate } from '../src/requests/request-rules.js';
 import {
   CSRF,
   createCategory,
@@ -9,8 +12,6 @@ import {
   resetDatabase,
   sessionCookieFor,
 } from './helpers.js';
-
-const HOUR = 3_600_000;
 
 describe('Solicitações (e2e)', () => {
   let app: NestExpressApplication;
@@ -22,8 +23,16 @@ describe('Solicitações (e2e)', () => {
   let ti: { id: number };
   let compras: { id: number };
   let inactive: { id: number };
+  let timeZone: string;
 
   const http = () => request(app.getHttpServer());
+
+  const cookieOf = async (username: string, role?: 'AGENT') =>
+    (await sessionCookieFor(app, (await createUser(app, username, role)).id)).cookie;
+
+  // Prazo esperado: o mesmo cálculo de horas úteis da API (as contas têm teste unitário).
+  const expectedDue = (createdAt: string, slaHours: number) =>
+    dueDate(new Date(createdAt), slaHours, timeZone).toISOString();
 
   const open = (cookie: string, body: object = {}) =>
     http()
@@ -61,12 +70,12 @@ describe('Solicitações (e2e)', () => {
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
+    const config = app.get<ConfigService<Env, true>>(ConfigService);
+    timeZone = config.get('APP_TIMEZONE', { infer: true });
   });
 
   beforeEach(async () => {
     await resetDatabase(app);
-    const cookieOf = async (username: string, role?: 'AGENT') =>
-      (await sessionCookieFor(app, (await createUser(app, username, role)).id)).cookie;
     ana = await cookieOf('ana');
     bruno = await cookieOf('bruno');
     carla = await cookieOf('carla', 'AGENT');
@@ -80,7 +89,7 @@ describe('Solicitações (e2e)', () => {
   });
 
   describe('POST /api/requests', () => {
-    it('abre em Aberto, com código, prazo pelo SLA e o registro de abertura no histórico', async () => {
+    it('abre em Aberto, sem responsável, com prazo pelo SLA e o registro de abertura', async () => {
       const { body } = await open(ana).expect(201);
 
       expect(body).toMatchObject({
@@ -91,9 +100,10 @@ describe('Solicitações (e2e)', () => {
         status: 'OPEN',
         category: { id: ti.id, name: 'TI' },
         requester: { id: 1, name: 'ana' },
+        assignee: null,
       });
-      // TI tem SLA de 24 h.
-      expect(Date.parse(body.dueAt) - Date.parse(body.createdAt)).toBe(24 * HOUR);
+      // TI tem SLA de 24 h úteis.
+      expect(body.dueAt).toBe(expectedDue(body.createdAt, 24));
       expect(body.history).toEqual([
         {
           fromStatus: null,
@@ -121,6 +131,15 @@ describe('Solicitações (e2e)', () => {
         'description',
         'categoryId',
       ]);
+    });
+
+    it('conta caracteres como o banco: título de dois emojis é curto (400, não 500)', async () => {
+      const { body } = await open(ana, { title: '😀😀' }).expect(400);
+
+      expect(body.errors).toEqual([
+        { path: 'title', message: 'O título precisa de pelo menos 3 caracteres' },
+      ]);
+      await open(ana, { title: '😀😀😀' }).expect(201);
     });
 
     it.each([
@@ -190,6 +209,30 @@ describe('Solicitações (e2e)', () => {
       expect(titles(toOnly)).toEqual(['30/09 23:59']);
     });
 
+    it('filtra as fora do prazo: não concluídas e com o prazo vencido', async () => {
+      const late = await openId(ana, { title: 'Vencida em Aberto' });
+      const lateInProgress = await openId(ana, { title: 'Vencida em atendimento' });
+      const lateDone = await openId(ana, { title: 'Vencida e concluída' });
+      await openId(ana, { title: 'No prazo' });
+      // Abertas há dois dias, com o prazo vencido há uma hora (o prazo é sempre depois da abertura).
+      const openedAt = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      const past = new Date(Date.now() - 60 * 60 * 1000);
+      for (const id of [late, lateInProgress, lateDone]) {
+        await prisma.request.update({ where: { id }, data: { createdAt: openedAt, dueAt: past } });
+      }
+      await setStatus(carla, lateInProgress, 'IN_PROGRESS').expect(200);
+      await setStatus(carla, lateDone, 'IN_PROGRESS').expect(200);
+      await setStatus(carla, lateDone, 'DONE').expect(200);
+
+      expect(titles(await list(ana, { overdue: 'true' }).expect(200))).toEqual([
+        'Vencida em atendimento',
+        'Vencida em Aberto',
+      ]);
+      expect(titles(await list(ana, { overdue: 'true', status: 'OPEN' }).expect(200))).toEqual([
+        'Vencida em Aberto',
+      ]);
+    });
+
     it('pagina e informa o total', async () => {
       for (const title of ['Primeira', 'Segunda', 'Terceira']) {
         await openId(ana, { title });
@@ -201,10 +244,53 @@ describe('Solicitações (e2e)', () => {
       expect(body.items.map((item: { title: string }) => item.title)).toEqual(['Primeira']);
     });
 
+    it('com asOf, as abertas depois não entram e a página 2 não muda', async () => {
+      await openId(ana, { title: 'Primeira' });
+      await openId(ana, { title: 'Segunda' });
+      const { body: third } = await open(ana, { title: 'Terceira' }).expect(201);
+      const secondPage = { page: 2, pageSize: 2, asOf: third.createdAt };
+      expect(titles(await list(ana, secondPage).expect(200))).toEqual(['Primeira']);
+
+      await openId(ana, { title: 'Quarta' });
+
+      const samePage = await list(ana, secondPage).expect(200);
+      expect(titles(samePage)).toEqual(['Primeira']);
+      expect(samePage.body.total).toBe(3);
+      // Sem asOf, a nova empurra os itens para a página seguinte.
+      expect(titles(await list(ana, { page: 2, pageSize: 2 }).expect(200))).toEqual([
+        'Segunda',
+        'Primeira',
+      ]);
+    });
+
     it('sem parâmetros usa página 1 com 10 itens', async () => {
       const { body } = await list(ana).expect(200);
 
-      expect(body).toEqual({ items: [], page: 1, pageSize: 10, total: 0 });
+      expect(body).toEqual({
+        items: [],
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        asOf: expect.any(String),
+      });
+    });
+
+    it('sem asOf, devolve o instante da API que fixou a lista; com ele, o mesmo pedido', async () => {
+      const before = Date.now();
+      const { body } = await list(ana).expect(200);
+      expect(Date.parse(body.asOf)).toBeGreaterThanOrEqual(before);
+      expect(Date.parse(body.asOf)).toBeLessThanOrEqual(Date.now());
+
+      const asOf = '2026-10-01T12:00:00.000Z';
+      expect((await list(ana, { asOf }).expect(200)).body.asOf).toBe(asOf);
+    });
+
+    it('a lista não traz a descrição; o detalhe traz', async () => {
+      const id = await openId(ana, { description: 'Só no detalhe' });
+
+      const { body } = await list(ana).expect(200);
+      expect(body.items[0]).not.toHaveProperty('description');
+      expect((await detail(ana, id).expect(200)).body.description).toBe('Só no detalhe');
     });
 
     it.each([
@@ -213,6 +299,8 @@ describe('Solicitações (e2e)', () => {
       [{ pageSize: 101 }, 'pageSize'],
       [{ from: '01/10/2026' }, 'from'],
       [{ from: '2026-10-02', to: '2026-10-01' }, 'to'],
+      [{ overdue: 'sim' }, 'overdue'],
+      [{ asOf: '2026-10-05' }, 'asOf'],
     ])('responde 400 para o filtro inválido %o', async (query, path) => {
       const { body } = await list(ana, query).expect(400);
 
@@ -221,13 +309,15 @@ describe('Solicitações (e2e)', () => {
   });
 
   describe('GET /api/requests/:id', () => {
-    it('o dono e o atendente veem o detalhe; outro colaborador recebe 403', async () => {
+    it('o dono e o atendente veem o detalhe; outro colaborador recebe 404', async () => {
       const id = await openId(ana);
 
       expect((await detail(ana, id).expect(200)).body.code).toBe('SOL-000001');
       expect((await detail(carla, id).expect(200)).body.history).toHaveLength(1);
-      const forbidden = await detail(bruno, id).expect(403);
-      expect(forbidden.headers['content-type']).toContain('application/problem+json');
+      // 404, e não 403: a resposta não revela que aquele número existe.
+      const hidden = await detail(bruno, id).expect(404);
+      expect(hidden.headers['content-type']).toContain('application/problem+json');
+      expect(hidden.body.detail).toBe('Solicitação não encontrada');
     });
 
     it('responde 404 para id que não existe e 400 para id que não é número', async () => {
@@ -247,19 +337,28 @@ describe('Solicitações (e2e)', () => {
       expect(body.history).toHaveLength(1);
     });
 
-    it('trocar a categoria refaz o prazo com o novo SLA, contado da abertura', async () => {
-      const id = await openId(ana);
+    it('trocar para uma categoria de SLA maior não adia o prazo', async () => {
+      const { body: opened } = await open(ana).expect(201);
 
-      const { body } = await edit(ana, id, { categoryId: compras.id }).expect(200);
+      const { body } = await edit(ana, opened.id, { categoryId: compras.id }).expect(200);
 
       expect(body.category.name).toBe('Compras');
-      expect(Date.parse(body.dueAt) - Date.parse(body.createdAt)).toBe(120 * HOUR);
+      expect(body.dueAt).toBe(opened.dueAt);
     });
 
-    it('responde 403 para quem não é o dono, inclusive o atendente', async () => {
+    it('trocar para uma categoria de SLA menor encurta o prazo, contado da abertura', async () => {
+      const { body: opened } = await open(ana, { categoryId: compras.id }).expect(201);
+
+      const { body } = await edit(ana, opened.id, { categoryId: ti.id }).expect(200);
+
+      expect(body.dueAt).toBe(expectedDue(opened.createdAt, 24));
+      expect(Date.parse(body.dueAt)).toBeLessThan(Date.parse(opened.dueAt));
+    });
+
+    it('responde 404 para outro colaborador e 403 para o atendente', async () => {
       const id = await openId(ana);
 
-      await edit(bruno, id, { title: 'Invasão' }).expect(403);
+      await edit(bruno, id, { title: 'Invasão' }).expect(404);
       await edit(carla, id, { title: 'Invasão' }).expect(403);
       expect((await detail(ana, id)).body.title).toBe('Notebook não liga');
     });
@@ -283,19 +382,36 @@ describe('Solicitações (e2e)', () => {
   });
 
   describe('DELETE /api/requests/:id', () => {
-    it('o dono exclui em Aberto: somem a solicitação e o histórico', async () => {
+    it('o dono exclui em Aberto: some da lista, do detalhe e do painel, mas a linha fica', async () => {
       const id = await openId(ana);
 
       await remove(ana, id).expect(204);
 
       await detail(ana, id).expect(404);
-      await expect(prisma.requestStatusHistory.count()).resolves.toBe(0);
+      await detail(carla, id).expect(404);
+      expect((await list(ana).expect(200)).body.total).toBe(0);
+      expect((await list(carla).expect(200)).body.total).toBe(0);
+      const summary = await http().get('/api/dashboard/summary').set('Cookie', carla).expect(200);
+      expect(summary.body.total).toBe(0);
+      // Exclusão lógica: a linha e o histórico continuam no banco, marcados com deleted_at.
+      const row = await prisma.request.findUnique({ where: { id } });
+      expect(row?.deletedAt).toBeInstanceOf(Date);
+      await expect(prisma.requestStatusHistory.count()).resolves.toBe(1);
     });
 
-    it('responde 403 para quem não é o dono, inclusive o atendente', async () => {
+    it('a excluída não se exclui de novo, nem se edita, nem muda de status (404)', async () => {
+      const id = await openId(ana);
+      await remove(ana, id).expect(204);
+
+      await remove(ana, id).expect(404);
+      await edit(ana, id, { title: 'Depois de excluída' }).expect(404);
+      await setStatus(carla, id, 'IN_PROGRESS').expect(404);
+    });
+
+    it('responde 404 para outro colaborador e 403 para o atendente', async () => {
       const id = await openId(ana);
 
-      await remove(bruno, id).expect(403);
+      await remove(bruno, id).expect(404);
       await remove(carla, id).expect(403);
       await detail(ana, id).expect(200);
     });
@@ -330,11 +446,51 @@ describe('Solicitações (e2e)', () => {
       ]);
     });
 
-    it('responde 403 para colaborador, mesmo sendo o dono', async () => {
+    it('responde 403 para colaborador, mesmo sendo o dono, e 404 para outro colaborador', async () => {
       const id = await openId(ana);
 
       await setStatus(ana, id, 'IN_PROGRESS').expect(403);
+      await setStatus(bruno, id, 'IN_PROGRESS').expect(404);
       expect((await detail(ana, id)).body.status).toBe('OPEN');
+    });
+
+    it('quem inicia o atendimento vira o responsável, na resposta, no detalhe e na lista', async () => {
+      const id = await openId(ana);
+
+      const { body } = await setStatus(carla, id, 'IN_PROGRESS').expect(200);
+
+      expect(body.assignee).toEqual({ id: 3, name: 'carla' });
+      expect((await detail(ana, id)).body.assignee).toEqual({ id: 3, name: 'carla' });
+      expect((await list(ana).expect(200)).body.items[0].assignee).toEqual({
+        id: 3,
+        name: 'carla',
+      });
+    });
+
+    it('só o responsável conclui: outro atendente recebe 403', async () => {
+      const dora = await cookieOf('dora', 'AGENT');
+      const id = await openId(ana);
+      await setStatus(carla, id, 'IN_PROGRESS').expect(200);
+
+      const { body } = await setStatus(dora, id, 'DONE').expect(403);
+      expect(body.detail).toBe('Só o responsável pelo atendimento pode concluí-lo');
+
+      const done = await setStatus(carla, id, 'DONE').expect(200);
+      expect(done.body.status).toBe('DONE');
+      expect(done.body.assignee).toEqual({ id: 3, name: 'carla' });
+    });
+
+    it('atendente não muda o status da que ele mesmo abriu, mas a edita como dono', async () => {
+      const dora = await cookieOf('dora', 'AGENT');
+      const id = await openId(carla);
+
+      const { body } = await setStatus(carla, id, 'IN_PROGRESS').expect(403);
+      expect(body.detail).toBe(
+        'Atendente não altera o status de uma solicitação que ele mesmo abriu',
+      );
+      await edit(carla, id, { title: 'Monitor piscando' }).expect(200);
+      // Outro atendente atende normalmente.
+      await setStatus(dora, id, 'IN_PROGRESS').expect(200);
     });
 
     it('responde 409 ao pular etapa, repetir o status ou voltar', async () => {
@@ -390,7 +546,16 @@ describe('Solicitações (e2e)', () => {
       (parameter: { name: string }) => parameter.name,
     );
     expect(filters).toEqual(
-      expect.arrayContaining(['status', 'categoryId', 'from', 'to', 'q', 'page', 'pageSize']),
+      expect.arrayContaining([
+        'status',
+        'categoryId',
+        'from',
+        'to',
+        'q',
+        'asOf',
+        'page',
+        'pageSize',
+      ]),
     );
   });
 });

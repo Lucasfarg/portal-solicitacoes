@@ -9,6 +9,10 @@ export const dashboardSummarySchema = z.object({
   done: z.number().int(),
   // Ainda não concluídas e com o prazo (dueAt) vencido.
   overdue: z.number().int(),
+  // Concluídas depois do prazo.
+  completedLate: z.number().int(),
+  // Média de horas entre a abertura e o início do atendimento; nulo enquanto nada foi iniciado.
+  averageTimeToStartHours: z.number().nullable(),
   // Média de horas entre a abertura e a conclusão; nulo enquanto nada foi concluído.
   averageResolutionHours: z.number().nullable(),
 });
