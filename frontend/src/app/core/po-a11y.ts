@@ -15,9 +15,15 @@ function asButton(element: HTMLElement, label: string): void {
     return;
   }
   element.dataset['keyboard'] = 'true';
+  // O clique sai ao soltar a tecla: disparado no keydown do Enter, o menu que abre e recebe o
+  // foco ainda pegava o resto da mesma tecla e fechava.
   element.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+    }
+  });
+  element.addEventListener('keyup', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
       element.click();
     }
   });
@@ -34,26 +40,8 @@ export class ToolbarA11y {
       if (profile) {
         asButton(profile, 'Menu do usuário');
         profile.setAttribute('aria-haspopup', 'listbox');
-        if (!profile.dataset['focusPopup']) {
-          profile.dataset['focusPopup'] = 'true';
-          profile.addEventListener('keydown', (event) => this.focusFirstOption(event));
-        }
       }
     });
-  }
-
-  // Aberto pelo teclado, o menu do usuário não recebe o foco: o Tab seguinte cairia no começo
-  // da página, sem passar por "Sair". O foco vai para a primeira opção assim que ela existe.
-  private focusFirstOption(event: KeyboardEvent, attempt = 0): void {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
-    }
-    const option = document.querySelector<HTMLElement>('po-popup [role="option"]');
-    if (option) {
-      option.focus();
-    } else if (attempt < 10) {
-      setTimeout(() => this.focusFirstOption(event, attempt + 1), 50);
-    }
   }
 }
 

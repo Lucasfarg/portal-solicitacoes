@@ -119,6 +119,8 @@ export class RequestList {
       kind: 'primary',
       action: () => this.newRequest(),
     },
+    { label: 'Exportar CSV', action: () => this.exportAs('csv') },
+    { label: 'Exportar Word', action: () => this.exportAs('docx') },
   ];
   protected readonly statusLabels = REQUEST_STATUS_LABELS;
   protected readonly statusTagType = STATUS_TAG_TYPE;
@@ -303,6 +305,15 @@ export class RequestList {
       queryParams: { page },
       queryParamsHandling: 'merge',
     });
+  }
+
+  // Baixa as solicitações com os filtros que estão na URL (todas as páginas).
+  protected exportAs(format: 'csv' | 'docx'): void {
+    const query = new URLSearchParams(this.route.snapshot.queryParams).toString();
+    const link = document.createElement('a');
+    link.href = `/api/requests/export/${format}${query ? `?${query}` : ''}`;
+    link.download = '';
+    link.click();
   }
 
   protected newRequest(): void {
