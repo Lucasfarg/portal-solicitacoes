@@ -18,6 +18,9 @@ import { AuthService } from '../core/auth.service';
     // Só para o leitor de tela: a mensagem visível é a do campo.
     .login-failure {
       position: absolute;
+      top: 0;
+      left: 0;
+      margin: 0;
       width: 1px;
       height: 1px;
       overflow: hidden;
@@ -33,11 +36,12 @@ export class Login {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly literals: PoPageLoginLiterals = {
-    // Ambiente de demonstração: quem avalia entra sem precisar abrir o README.
-    welcome: 'Use ana, bruno ou carla com a senha Senha@123',
+    welcome: 'Entrar',
     loginLabel: 'Usuário',
     loginPlaceholder: 'Seu usuário',
-    loginHint: 'ana e bruno são colaboradores; carla é atendente.',
+    // Ambiente de demonstração: os usuários ficam na dica do campo e no README.
+    loginHint:
+      'Usuários de demonstração: ana e bruno (colaboradores) e carla (atendente). Senha: Senha@123',
     passwordLabel: 'Senha',
     passwordPlaceholder: 'Sua senha',
     submitLabel: 'Entrar',
