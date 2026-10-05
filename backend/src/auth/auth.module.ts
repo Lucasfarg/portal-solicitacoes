@@ -15,7 +15,7 @@ import { SessionCookie } from './session-cookie.js';
     SessionService,
     SessionCookie,
     LoginThrottle,
-    // Guards globais, nesta ordem: primeiro CSRF, depois sessão.
+    // A ordem importa: primeiro CSRF, depois sessão.
     { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
   ],

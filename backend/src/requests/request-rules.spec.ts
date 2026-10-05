@@ -9,15 +9,13 @@ import {
 
 const FORTALEZA = 'America/Fortaleza';
 
-// Horário de Fortaleza (UTC-3) escrito com o offset, para o teste se ler como o relógio local.
-// 02/10/2026 é uma sexta-feira; 05/10/2026, uma segunda.
+// Fortaleza é UTC-3. 02/10/2026 é sexta; 05/10/2026, segunda.
 const at = (local: string) => new Date(`${local}-03:00`);
 
 describe('Transições de status', () => {
   const carla = { id: 3, name: 'Carla Mendes', username: 'carla', role: 'AGENT' as const };
   const VALID = ['OPEN>IN_PROGRESS', 'IN_PROGRESS>DONE'];
 
-  // As 9 combinações de origem e destino: só as duas de VALID passam.
   const pairs = REQUEST_STATUSES.flatMap((from) => REQUEST_STATUSES.map((to) => ({ from, to })));
 
   it.each(pairs)('$from → $to', ({ from, to }) => {

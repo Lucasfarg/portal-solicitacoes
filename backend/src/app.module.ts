@@ -13,8 +13,7 @@ import { RequestsModule } from './requests/requests.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // .env único na raiz do repo, achado a partir deste arquivo (vale para src/ e dist/,
-      // de qualquer pasta de onde a API rode); no Docker as variáveis vêm do ambiente.
+      // .env único na raiz do repo; no Docker as variáveis vêm do ambiente.
       envFilePath: fileURLToPath(new URL('../../.env', import.meta.url)),
       validate: validateEnv,
     }),

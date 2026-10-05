@@ -5,10 +5,9 @@ import type { AuthUser } from '@portal/shared';
 import type { Env } from '../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-// Evita uma escrita no banco a cada requisição: last_seen_at só avança de minuto em minuto.
 const TOUCH_INTERVAL_MS = 60_000;
 
-// No banco fica só o SHA-256 do token: quem ler a tabela não consegue usar as sessões.
+// No banco fica só o SHA-256: quem ler a tabela não usa as sessões.
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -26,7 +25,6 @@ export class SessionService {
     this.absoluteMs = config.get('SESSION_ABSOLUTE_HOURS', { infer: true }) * 3_600_000;
   }
 
-  // Token opaco de 256 bits; só quem fez login o recebe, no cookie.
   async create(userId: number): Promise<string> {
     const token = randomBytes(32).toString('base64url');
     const now = new Date();
@@ -34,7 +32,6 @@ export class SessionService {
       data: {
         tokenHash: hashToken(token),
         userId,
-        // O instante sai da API, como o de todas as outras colunas de data.
         createdAt: now,
         lastSeenAt: now,
         expiresAt: new Date(now.getTime() + this.absoluteMs),
@@ -43,8 +40,6 @@ export class SessionService {
     return token;
   }
 
-  // Devolve o usuário da sessão e quanto falta para ela expirar por inatividade (ou pelo
-  // limite absoluto, se vier antes), ou null se ela não existe ou expirou.
   async validate(token: string): Promise<{ user: AuthUser; remainingMs: number } | null> {
     const session = await this.prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
@@ -57,7 +52,6 @@ export class SessionService {
     const now = Date.now();
     const lastSeen = session.lastSeenAt.getTime();
     const expired = session.expiresAt.getTime() <= now || lastSeen + this.idleMs <= now;
-    // Usuário desativado perde na hora as sessões abertas.
     if (expired || !session.user.active) {
       await this.prisma.session.deleteMany({ where: { id: session.id } });
       return null;
@@ -65,8 +59,7 @@ export class SessionService {
 
     let renewedAt = lastSeen;
     if (now - lastSeen >= TOUCH_INTERVAL_MS) {
-      // updateMany: se a sessão foi encerrada em outra aba entre a leitura e esta gravação,
-      // nada é alterado (o update lançaria "registro não encontrado" no meio de outra rota).
+      // updateMany: o update lançaria erro se a sessão fosse encerrada em outra aba nesse meio tempo.
       await this.prisma.session.updateMany({
         where: { id: session.id },
         data: { lastSeenAt: new Date(now) },
@@ -74,8 +67,7 @@ export class SessionService {
       renewedAt = now;
     }
 
-    // Como last_seen_at só avança de minuto em minuto, o fim real pode estar até um minuto
-    // antes de "agora + tempo de inatividade". A tela conta a partir deste número.
+    // last_seen_at avança de minuto em minuto, então o fim real pode ser até 1 min antes do calculado.
     const remainingMs = Math.min(renewedAt + this.idleMs, session.expiresAt.getTime()) - now;
     const { id, name, username, role } = session.user;
     return { user: { id, name, username, role }, remainingMs };

@@ -56,7 +56,6 @@ describe('Plataforma e banco (e2e)', () => {
     const ti = await createCategory(app, 'TI', 24);
     const prisma = app.get(PrismaService);
 
-    // SLA zero, categoria repetida com outra caixa e título curto demais.
     await expect(createCategory(app, 'RH', 0)).rejects.toThrow(/categories_sla_hours_check/);
     await expect(createCategory(app, 'ti', 24)).rejects.toThrow();
     await expect(

@@ -30,12 +30,9 @@ import {
   visibleTo,
 } from './request-rules.js';
 
-// Todo instante gravado ou comparado sai do relógio da API (new Date()), nunca do now() do
-// banco: abertura, prazo, histórico e "fora do prazo" ficam na mesma régua.
-// Excluir não apaga a linha: grava deleted_at, e toda leitura ignora as excluídas.
+// Todo instante vem do relógio da API, nunca do now() do banco, para ficar na mesma régua.
 @Injectable()
 export class RequestsService {
-  // Fuso do expediente (prazo em horas úteis) e das datas do filtro.
   private readonly timeZone: string;
 
   constructor(
@@ -49,7 +46,6 @@ export class RequestsService {
     const category = await this.findActiveCategory(input.categoryId);
     const openedAt = new Date();
 
-    // A solicitação e o registro de abertura no histórico são gravados juntos (uma transação).
     const created = await this.prisma.request.create({
       data: {
         ...input,
@@ -61,13 +57,11 @@ export class RequestsService {
         },
       },
     });
-    // Relida já com categoria, solicitante e histórico, no formato da resposta.
     return this.detail(created.id);
   }
 
   async list(user: AuthUser, query: ListRequestsQuery): Promise<RequestPage> {
     const now = new Date();
-    // Filtro não informado fica `undefined`, e o Prisma o ignora.
     const where: Prisma.RequestWhereInput = {
       ...visibleTo(user),
       deletedAt: null,
@@ -107,9 +101,7 @@ export class RequestsService {
     const current = await this.findOrFail(id);
     assertCanModify(user, current);
 
-    // Trocar de categoria troca o SLA, mas o prazo nunca é adiado: vale o menor entre o atual
-    // e o refeito com o SLA novo (contado da abertura). Se adiasse, bastaria trocar a
-    // categoria para tirar uma solicitação do atraso.
+    // O prazo nunca é adiado: senão bastaria trocar a categoria para tirar a solicitação do atraso.
     let dueAt = current.dueAt;
     if (input.categoryId !== undefined && input.categoryId !== current.categoryId) {
       const category = await this.findActiveCategory(input.categoryId);
@@ -117,8 +109,7 @@ export class RequestsService {
       dueAt = recalculated < current.dueAt ? recalculated : current.dueAt;
     }
 
-    // A regra (dono, em Aberto) entra no WHERE da própria gravação: se um atendente iniciou
-    // o atendimento depois da leitura acima, nada é gravado.
+    // A regra entra no WHERE da gravação: se um atendente iniciou depois da leitura, nada é gravado.
     const { count } = await this.prisma.request.updateMany({
       where: { id, requesterId: user.id, status: 'OPEN', deletedAt: null },
       data: { ...input, dueAt },
@@ -132,8 +123,6 @@ export class RequestsService {
   async remove(user: AuthUser, id: number): Promise<void> {
     const current = await this.findOrFail(id);
     assertCanModify(user, current);
-    // Exclusão lógica, com a mesma condição no WHERE: a linha e o histórico ficam no banco
-    // (auditoria), marcados com o instante da exclusão.
     const { count } = await this.prisma.request.updateMany({
       where: { id, requesterId: user.id, status: 'OPEN', deletedAt: null },
       data: { deletedAt: new Date() },
@@ -149,9 +138,7 @@ export class RequestsService {
     const starting = to === 'IN_PROGRESS';
 
     await this.prisma.$transaction(async (tx) => {
-      // O status lido acima entra no WHERE: se outro atendente mudou primeiro, nenhuma linha
-      // é alterada e a transação é desfeita, sem gravar histórico duplicado. Quem inicia o
-      // atendimento vira o responsável; concluir exige ainda ser o responsável.
+      // O status lido entra no WHERE: se outro atendente mudou primeiro, a transação é desfeita sem histórico duplicado.
       const { count } = await tx.request.updateMany({
         where: starting
           ? { id, status: current.status, deletedAt: null }
@@ -174,9 +161,7 @@ export class RequestsService {
     return this.detail(id);
   }
 
-  // A gravação condicional não alterou nada: alguém mudou a solicitação entre a leitura e a
-  // gravação. Relê para responder o motivo atual (404 se foi excluída, 409 se saiu de Aberto).
-  // assertCanModify também confere se quem pede vê a solicitação (404 se não vê).
+  // Nada alterado: relê para responder o motivo atual (404 se excluída, 409 se saiu de Aberto).
   private async explainRefusal(user: AuthUser, id: number): Promise<never> {
     const latest = await this.findOrFail(id);
     assertCanModify(user, latest);
@@ -188,7 +173,6 @@ export class RequestsService {
   }
 
   private async findOrFail(id: number): Promise<RequestDetailRow> {
-    // Excluída responde como inexistente.
     const request = await this.prisma.request.findFirst({
       where: { id, deletedAt: null },
       include: WITH_HISTORY,
@@ -199,7 +183,7 @@ export class RequestsService {
     return request;
   }
 
-  // Categoria inexistente ou desativada é erro de preenchimento: 400 apontando o campo.
+  // Categoria inexistente ou desativada é 400 apontando o campo.
   private async findActiveCategory(id: number) {
     const category = await this.prisma.category.findFirst({ where: { id, active: true } });
     if (!category) {

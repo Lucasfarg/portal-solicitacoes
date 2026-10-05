@@ -7,10 +7,7 @@ export class MalformedRequestException extends BadRequestException {
   }
 }
 
-// O Express lança SyntaxError quando o corpo não é JSON válido e URIError quando a URL tem um
-// "%" malformado; o adaptador padrão do Nest repassa os dois como BadRequestException com a
-// mensagem crua do parser, em inglês. Aqui eles viram um erro nosso, já em português, na
-// origem: o filtro de erros não precisa adivinhar de onde veio cada 400.
+// O Nest repassa JSON/URL malformados com a mensagem crua do parser, em inglês; aqui viram erro nosso, em português.
 export class PortalExpressAdapter extends ExpressAdapter {
   override mapException(error: unknown): unknown {
     if (error instanceof SyntaxError || error instanceof URIError) {

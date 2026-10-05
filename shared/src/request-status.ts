@@ -12,8 +12,6 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   DONE: 'Concluído',
 };
 
-// Fluxo do atendimento: cada status só avança para o seguinte, sem pular e sem voltar.
-// A API usa para validar a transição; o front, para saber qual botão mostrar.
 export const NEXT_STATUS: Record<RequestStatus, RequestStatus | null> = {
   OPEN: 'IN_PROGRESS',
   IN_PROGRESS: 'DONE',

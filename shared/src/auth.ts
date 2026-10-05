@@ -8,7 +8,6 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-// O que a API devolve sobre o usuário logado (login e /auth/me).
 export const authUserSchema = z.object({
   id: z.number().int(),
   name: z.string(),

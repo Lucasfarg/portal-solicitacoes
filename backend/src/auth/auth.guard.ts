@@ -14,7 +14,6 @@ import { IS_PUBLIC_KEY } from './public.decorator.js';
 import { SessionService } from './session.service.js';
 import { SessionCookie } from './session-cookie.js';
 
-// Guard global: toda rota exige sessão válida, exceto as marcadas com @Public().
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly idleMinutes: string;
@@ -46,8 +45,7 @@ export class AuthGuard implements CanActivate {
 
     request.user = session.user;
     request.sessionToken = token;
-    // A tela calcula o aviso de sessão perto de expirar com os valores que a API usa de fato.
-    // Os cabeçalhos ficam também nas respostas de erro (409, 404…) desta requisição.
+    // Os cabeçalhos ficam também nas respostas de erro desta requisição.
     const response = context.switchToHttp().getResponse<Response>();
     response.setHeader(SESSION_IDLE_HEADER, this.idleMinutes);
     response.setHeader(SESSION_REMAINING_HEADER, String(Math.floor(session.remainingMs / 1000)));

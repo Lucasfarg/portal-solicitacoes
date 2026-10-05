@@ -6,7 +6,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Só as ativas: categoria desativada some do formulário, mas continua nas solicitações antigas.
   listActive(): Promise<Category[]> {
     return this.prisma.category.findMany({
       where: { active: true },

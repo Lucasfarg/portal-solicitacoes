@@ -3,8 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 import type { Env } from '../config/env.js';
 
-// Cookie que carrega o token de sessão: fora do alcance de JavaScript (HttpOnly)
-// e nunca enviado em requisições vindas de outro site (SameSite=Strict).
 @Injectable()
 export class SessionCookie {
   readonly name: string;
@@ -12,8 +10,7 @@ export class SessionCookie {
 
   constructor(config: ConfigService<Env, true>) {
     const secure = config.get('HTTPS_ONLY', { infer: true });
-    // Com o prefixo __Host- o navegador só aceita o cookie se ele vier com Secure,
-    // Path=/ e sem Domain. Exige HTTPS, por isso fica fora do ambiente local.
+    // __Host- exige Secure, Path=/ e sem Domain, ou seja, HTTPS; fica fora do ambiente local.
     this.name = secure ? '__Host-sid' : 'sid';
     this.options = { httpOnly: true, sameSite: 'strict', secure, path: '/' };
   }

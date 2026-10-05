@@ -16,7 +16,6 @@ import {
 describe('Solicitações (e2e)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
-  // Cookies de sessão: ana e bruno são colaboradores; carla é atendente.
   let ana: string;
   let bruno: string;
   let carla: string;
@@ -30,7 +29,6 @@ describe('Solicitações (e2e)', () => {
   const cookieOf = async (username: string, role?: 'AGENT') =>
     (await sessionCookieFor(app, (await createUser(app, username, role)).id)).cookie;
 
-  // Prazo esperado: o mesmo cálculo de horas úteis da API (as contas têm teste unitário).
   const expectedDue = (createdAt: string, slaHours: number) =>
     dueDate(new Date(createdAt), slaHours, timeZone).toISOString();
 
@@ -152,7 +150,6 @@ describe('Solicitações (e2e)', () => {
     });
 
     it('filtra pelo período de abertura, com os dois dias inclusos', async () => {
-      // Meio-dia em Fortaleza de cada dia.
       for (const day of ['2026-09-30', '2026-10-01', '2026-10-02']) {
         const id = await openId(ana, { title: day });
         const createdAt = new Date(`${day}T15:00:00Z`);
@@ -315,7 +312,6 @@ describe('Solicitações (e2e)', () => {
       ]);
 
       expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
-      // Abertura e uma única mudança: o pedido recusado não deixou registro.
       await expect(prisma.requestStatusHistory.count()).resolves.toBe(2);
     });
   });

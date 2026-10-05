@@ -1,26 +1,22 @@
 import type { AuthUser } from './auth.js';
 import { NEXT_STATUS, type RequestStatus } from './request-status.js';
 
-// Quem pode o quê numa solicitação. A API aplica (e responde o erro de cada motivo); o front
-// usa as mesmas funções só para decidir quais botões aparecem.
+// A API aplica estas regras; o front usa as mesmas funções só para mostrar os botões.
 
 export interface RequestAccess {
   requesterId: number;
   status: RequestStatus;
-  // Atendente que iniciou o atendimento; nulo enquanto está em Aberto.
   assigneeId: number | null;
 }
 
 type Viewer = Pick<AuthUser, 'id' | 'role'>;
 
-// Atendente vê todas; colaborador, só as que abriu.
 export function canView(user: Viewer, request: Pick<RequestAccess, 'requesterId'>): boolean {
   return user.role === 'AGENT' || request.requesterId === user.id;
 }
 
 export type ModifyRefusal = 'NOT_REQUESTER' | 'NOT_OPEN';
 
-// Editar e excluir: só quem abriu, e só enquanto ninguém começou a atender.
 export function modifyRefusal(
   user: Viewer,
   request: Pick<RequestAccess, 'requesterId' | 'status'>,
@@ -37,8 +33,7 @@ export type StatusChangeRefusal =
   | 'INVALID_TRANSITION'
   | 'NOT_ASSIGNEE';
 
-// Mudar status: só atendente, nunca na solicitação que ele mesmo abriu (conflito de interesse),
-// só para o próximo passo do fluxo, e só quem iniciou o atendimento o conclui.
+// Atendente nunca muda a que ele mesmo abriu (conflito de interesse); só quem iniciou conclui.
 export function statusChangeRefusal(
   user: Viewer,
   request: RequestAccess,
@@ -59,7 +54,6 @@ export function statusChangeRefusal(
   return null;
 }
 
-// Próximo status que este usuário pode aplicar, ou nulo se nenhum.
 export function nextStatusFor(user: Viewer, request: RequestAccess): RequestStatus | null {
   const to = NEXT_STATUS[request.status];
   return to && !statusChangeRefusal(user, request, to) ? to : null;
