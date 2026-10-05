@@ -3,46 +3,26 @@
     <h1 class="po-font-title">Portal de Solicitações Internas</h1>
     <p class="po-font-text">Entre com seu usuário e senha.</p>
 
-    <!-- Campos nativos: o po-login e o po-password não aceitam autocomplete="username" /
-         "current-password", e o "mostrar senha" do po-password só responde ao mouse. -->
-    <div class="native-field">
-      <label class="po-label" for="username">Usuário</label>
-      <input
-        #username
-        class="po-input"
-        id="username"
-        type="text"
-        formControlName="username"
-        autocomplete="username"
-        autocapitalize="none"
-        required
-        appErrorId="username-error"
-      />
-    </div>
+    <po-login
+      formControlName="username"
+      name="username"
+      p-label="Usuário"
+      appAutocomplete="username"
+      appErrorId="username-error"
+      [p-auto-focus]="true"
+      [p-no-autocomplete]="false"
+    />
     <app-field-error id="username-error" [control]="form.controls.username" />
 
-    <div class="native-field">
-      <label class="po-label" for="password">Senha</label>
-      <div class="password">
-        <input
-          class="po-input"
-          id="password"
-          formControlName="password"
-          autocomplete="current-password"
-          required
-          appErrorId="password-error"
-          [type]="showPassword() ? 'text' : 'password'"
-        />
-        <button
-          type="button"
-          class="native-button"
-          [attr.aria-pressed]="showPassword()"
-          (click)="showPassword.set(!showPassword())"
-        >
-          Mostrar senha
-        </button>
-      </div>
-    </div>
+    <po-password
+      appPasswordPeek
+      formControlName="password"
+      name="password"
+      p-label="Senha"
+      appAutocomplete="current-password"
+      appErrorId="password-error"
+      [p-no-autocomplete]="false"
+    />
     <app-field-error id="password-error" [control]="form.controls.password" />
 
     @if (failure(); as message) {
@@ -56,5 +36,15 @@
       [p-label]="loading() ? 'Entrando…' : 'Entrar'"
       [p-type]="submitType"
     />
+
+    <!-- Ambiente de demonstração: quem avalia entra sem precisar abrir o README. -->
+    <section class="demo" aria-labelledby="demo-title">
+      <h2 id="demo-title" class="demo-title">Usuários de demonstração</h2>
+      <p class="po-font-text-small">Senha de todos: <code>Senha&#64;123</code></p>
+      <ul class="po-font-text-small">
+        <li><code>ana</code> e <code>bruno</code>: colaboradores</li>
+        <li><code>carla</code>: atendente</li>
+      </ul>
+    </section>
   </form>
 </main>

@@ -1,28 +1,18 @@
-<app-page [title]="title()">
-  <!-- Trilha de navegação nativa: o po-breadcrumb põe um valor inválido em aria-current e
-       faz do item atual uma parada de Tab sem função. -->
-  <nav pageBreadcrumb class="breadcrumb" aria-label="Você está em">
-    <ol>
-      <li><a class="link" routerLink="/solicitacoes">Solicitações</a></li>
-      <li aria-current="page">Detalhe</li>
-    </ol>
-  </nav>
-
-  <ng-container ngProjectAs="[pageActions]">
-    @if (nextStatus(); as next) {
-      <po-button p-kind="primary" [p-label]="advanceLabel[next]" (p-click)="confirmAdvance(next)" />
-    }
-    @if (canModify()) {
-      <po-button p-label="Editar" (p-click)="edit()" />
-      <po-button p-label="Excluir" [p-danger]="true" (p-click)="confirmRemove()" />
-    }
-  </ng-container>
+<po-page-default
+  appPageA11y
+  [p-title]="title()"
+  [p-breadcrumb]="breadcrumb()"
+  [p-actions]="actions()"
+>
+  @if (loading() || error()) {
+    <app-load-state [loading]="loading()" [error]="error()" (retry)="load()" />
+  }
 
   @if (request(); as request) {
     <div class="tags">
       <po-tag [p-value]="statusLabels[request.status]" [p-type]="statusTagType[request.status]" />
       @if (overdue()) {
-        <po-tag p-value="Atrasada" [p-type]="danger" />
+        <po-tag [p-value]="overdueLabel" [p-type]="danger" />
       }
     </div>
 
@@ -37,6 +27,10 @@
         <dd>{{ request.requester.name }}</dd>
       </div>
       <div>
+        <dt>Responsável</dt>
+        <dd>{{ assignee() }}</dd>
+      </div>
+      <div>
         <dt>Aberta em</dt>
         <dd>{{ request.createdAt | date: dateTimeFormat }}</dd>
       </div>
@@ -49,26 +43,15 @@
     <h2 class="section-title">Descrição</h2>
     <p class="po-font-text description">{{ request.description }}</p>
 
-    <h2 class="section-title" id="history-title">Histórico</h2>
-    <table class="data-table" aria-labelledby="history-title">
-      <thead>
-        <tr>
-          <th scope="col">Quando</th>
-          <th scope="col">O que mudou</th>
-          <th scope="col">Quem</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (entry of history(); track entry.changedAt) {
-          <tr>
-            <td>{{ entry.changedAt | date: dateTimeFormat }}</td>
-            <td>{{ entry.change }}</td>
-            <td>{{ entry.changedBy }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <h2 class="section-title">Histórico</h2>
+    <po-table
+      appTableLabel="Histórico"
+      [p-columns]="historyColumns"
+      [p-items]="history()"
+      [p-hide-columns-manager]="true"
+      [p-hide-table-search]="true"
+    />
   }
-</app-page>
+</po-page-default>
 
 <app-confirm-dialog />

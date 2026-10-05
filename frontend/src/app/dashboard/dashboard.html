@@ -1,21 +1,25 @@
-<app-page title="Painel" [subtitle]="subtitle()">
+<po-page-default appPageA11y p-title="Painel" [p-subtitle]="subtitle()">
+  @if (loading() || error()) {
+    <app-load-state [loading]="loading()" [error]="error()" (retry)="load()" />
+  }
+
   <div class="po-row">
     @for (card of cards(); track card.label) {
-      <div class="po-sm-12 po-md-6 po-lg-4">
+      <div class="po-sm-12 po-md-6 po-lg-3">
         <po-widget [p-title]="card.label">
           <p class="kpi-value">{{ card.value }}</p>
           <p class="po-font-text-small">{{ card.help }}</p>
-          <!-- O rótulo acessível diz de qual cartão é o botão: fora de contexto os quatro
+          <!-- O rótulo acessível diz de qual cartão é o botão: fora de contexto os cinco
                "Ver solicitações" seriam iguais para o leitor de tela. -->
-          @if (card.status; as status) {
+          @if (card.filter; as filter) {
             <po-button
               p-label="Ver solicitações"
               [p-aria-label]="'Ver solicitações: ' + card.label"
-              (p-click)="openList(status)"
+              (p-click)="openList(filter)"
             />
           }
         </po-widget>
       </div>
     }
   </div>
-</app-page>
+</po-page-default>

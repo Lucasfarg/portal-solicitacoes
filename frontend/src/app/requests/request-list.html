@@ -1,12 +1,4 @@
-<app-page [title]="title()">
-  <po-button
-    pageActions
-    p-label="Nova solicitação"
-    p-icon="an an-plus"
-    p-kind="primary"
-    (p-click)="newRequest()"
-  />
-
+<po-page-default appPageA11y [p-title]="title()" [p-actions]="pageActions">
   <form aria-label="Filtros" [formGroup]="filters" (ngSubmit)="applyFilters()">
     <div class="po-row">
       <po-input
@@ -15,6 +7,7 @@
         name="q"
         p-label="Título"
         p-placeholder="Buscar no título"
+        (keydown.escape)="clearSearch()"
       />
       <po-select
         class="po-sm-6 po-md-3 po-lg-2"
@@ -30,122 +23,117 @@
         p-label="Categoria"
         [p-options]="categoryOptions()"
       />
-      <!-- Data nativa: no po-datepicker o foco não entra no calendário pelo teclado e os
-           seletores de mês e ano não têm rótulo. -->
-      <div class="po-sm-6 po-md-3 po-lg-2 native-field date-field">
-        <label class="po-label" for="filter-from">Aberta de</label>
-        <input class="po-input" id="filter-from" type="date" formControlName="from" />
-      </div>
-      <div class="po-sm-6 po-md-3 po-lg-2 native-field date-field">
-        <label class="po-label" for="filter-to">Aberta até</label>
-        <input class="po-input" id="filter-to" type="date" formControlName="to" />
-      </div>
+      <po-datepicker
+        appDatepickerA11y
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="from"
+        name="from"
+        p-label="Aberta de"
+        (keydown.enter)="submitDate('from', $event)"
+        [p-iso-format]="isoBasic"
+        [p-clean]="true"
+      />
+      <po-datepicker
+        appDatepickerA11y
+        class="po-sm-6 po-md-3 po-lg-2"
+        formControlName="to"
+        name="to"
+        p-label="Aberta até"
+        (keydown.enter)="submitDate('to', $event)"
+        [p-iso-format]="isoBasic"
+        [p-clean]="true"
+      />
     </div>
     <div class="filter-buttons">
+      <po-checkbox
+        appCheckboxA11y
+        formControlName="overdue"
+        name="overdue"
+        p-label="Só as fora do prazo"
+      />
       <po-button p-label="Filtrar" p-kind="primary" [p-type]="submitType" />
       <po-button p-label="Limpar filtros" (p-click)="clearFilters()" />
     </div>
   </form>
 
+  <!-- Sempre na página, vazio quando está tudo bem: uma região viva (role="status") criada já
+       com a mensagem costuma não ser lida; existindo antes, a mensagem de erro é anunciada. -->
+  <app-load-state [error]="error()" (retry)="reload()" />
+
   @if (isMobile()) {
-    <div class="cards">
+    <div class="cards" [attr.aria-busy]="loading()">
       @for (row of rows(); track row.id) {
         <po-widget [p-title]="row.code">
-          <p class="po-font-text-large-bold card-title">{{ row.title }}</p>
+          <p class="po-font-text-large-bold card-title">
+            <a class="link" [routerLink]="['/solicitacoes', row.id]">{{ row.title }}</a>
+          </p>
           <div class="card-tags">
             <po-tag [p-value]="statusLabels[row.status]" [p-type]="statusTagType[row.status]" />
-            @if (row.deadline === 'LATE') {
-              <po-tag
-                [p-value]="deadlineLabels[row.deadline]"
-                [p-type]="deadlineTagType[row.deadline]"
-              />
+            @if (row.overdue) {
+              <po-tag [p-value]="overdueLabel" [p-type]="danger" />
             }
           </div>
           <p class="po-font-text-small card-meta">
-            {{ row.category }} · {{ row.requester }}<br />
+            {{ row.category }}
+            @if (isAgent()) {
+              · {{ row.requester }}<br />
+              Responsável: {{ row.assignee }}
+            }
+            <br />
             Aberta em {{ row.createdAt | date: dateTimeFormat }}<br />
             Prazo: {{ row.dueAt | date: dateTimeFormat }}
           </p>
-          <po-button p-label="Abrir" [p-aria-label]="'Abrir ' + row.code" (p-click)="open(row)" />
         </po-widget>
       } @empty {
-        @if (!loading()) {
+        @if (!loading() && !error()) {
           <p class="po-font-text">Nenhuma solicitação encontrada.</p>
         }
       }
     </div>
   } @else {
-    <!-- Tabela nativa: a ação de linha do po-table não recebe foco e a área rolável dele
-         não é alcançável pelo teclado. Aqui o código é um link e a moldura recebe foco. -->
-    <div class="table-scroll" role="region" aria-labelledby="list-caption" tabindex="0">
-      <table class="data-table" [attr.aria-busy]="loading()">
-        <caption id="list-caption">
-          Solicitações encontradas
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Código</th>
-            <th scope="col">Título</th>
-            <th scope="col">Categoria</th>
-            @if (isAgent()) {
-              <th scope="col">Solicitante</th>
-            }
-            <th scope="col">Abertura</th>
-            <th scope="col">Prazo</th>
-            <th scope="col">SLA</th>
-            <th scope="col">Situação</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of rows(); track row.id) {
-            <tr>
-              <td class="code">
-                <a class="link" [routerLink]="['/solicitacoes', row.id]">{{ row.code }}</a>
-              </td>
-              <td class="title">{{ row.title }}</td>
-              <td>{{ row.category }}</td>
-              @if (isAgent()) {
-                <td>{{ row.requester }}</td>
-              }
-              <td>{{ row.createdAt | date: dateTimeFormat }}</td>
-              <td>{{ row.dueAt | date: dateTimeFormat }}</td>
-              <td>
-                <po-tag
-                  [p-value]="deadlineLabels[row.deadline]"
-                  [p-type]="deadlineTagType[row.deadline]"
-                />
-              </td>
-              <td>
-                <po-tag [p-value]="statusLabels[row.status]" [p-type]="statusTagType[row.status]" />
-              </td>
-            </tr>
-          } @empty {
-            @if (!loading()) {
-              <tr>
-                <td [attr.colspan]="isAgent() ? 8 : 7">Nenhuma solicitação encontrada.</td>
-              </tr>
-            }
+    <po-table
+      appTableLabel="Solicitações encontradas (das mais recentes para as mais antigas)"
+      [p-columns]="columns()"
+      [p-items]="rows()"
+      [p-loading]="loading()"
+      [p-striped]="true"
+      [p-hide-columns-manager]="true"
+      [p-hide-table-search]="true"
+      [p-literals]="tableLiterals"
+    >
+      <!-- Data do prazo e, quando vencido, a etiqueta logo depois. -->
+      <ng-template p-table-column-template p-property="due" let-due>
+        <span class="due">
+          {{ due.at | date: dateTimeFormat }}
+          @if (due.overdue) {
+            <po-tag [p-value]="overdueLabel" [p-type]="danger" />
           }
-        </tbody>
-      </table>
-    </div>
+        </span>
+      </ng-template>
+    </po-table>
   }
 
   <nav class="pager" aria-label="Paginação">
     <po-button
       p-label="Anterior"
-      [p-disabled]="page().page <= 1"
+      [p-disabled]="loading() || !!error() || page().page <= 1"
       (p-click)="goToPage(page().page - 1)"
     />
-    <!-- role="status": o leitor de tela anuncia o resultado quando o filtro ou a página muda. -->
+    <!-- role="status": o leitor de tela anuncia o resultado quando o filtro ou a página muda.
+         Enquanto a busca não volta, diz que está carregando, e não "0 solicitações". Se a busca
+         falhou, fica vazio: quem anuncia é o aviso de erro acima, e não "0 solicitações". -->
     <span class="po-font-text" role="status">
-      Página {{ page().page }} de {{ totalPages() }} · {{ page().total }}
-      {{ page().total === 1 ? 'solicitação' : 'solicitações' }}
+      @if (loading()) {
+        Carregando…
+      } @else if (!error()) {
+        Página {{ page().page }} de {{ totalPages() }} · {{ page().total }}
+        {{ page().total === 1 ? 'solicitação' : 'solicitações' }}
+      }
     </span>
     <po-button
       p-label="Próxima"
-      [p-disabled]="page().page >= totalPages()"
+      [p-disabled]="loading() || !!error() || page().page >= totalPages()"
       (p-click)="goToPage(page().page + 1)"
     />
   </nav>
-</app-page>
+</po-page-default>

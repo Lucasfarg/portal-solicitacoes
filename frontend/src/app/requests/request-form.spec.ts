@@ -22,7 +22,9 @@ const saved: RequestDetail = {
   status: 'OPEN',
   category: { id: 5, name: 'TI' },
   requester: { id: ana.id, name: ana.name },
+  assignee: null,
   dueAt: '2026-10-02T12:00:00.000Z',
+  overdue: false,
   createdAt: '2026-10-01T12:00:00.000Z',
   updatedAt: '2026-10-01T12:00:00.000Z',
   history: [],
@@ -131,6 +133,35 @@ describe('RequestForm', () => {
     });
   });
 
+  describe('saída com alterações não salvas', () => {
+    beforeEach(() => setup());
+
+    // A janela de confirmação, com a resposta da pessoa já escolhida.
+    const answer = (confirm: boolean) =>
+      vi
+        .spyOn(component['dialog'](), 'ask')
+        .mockImplementation((_question, onConfirm, onCancel) =>
+          confirm ? onConfirm() : onCancel?.(),
+        );
+
+    it('sem alteração sai sem perguntar', () => {
+      const ask = answer(true);
+
+      expect(component.canLeave()).toBe(true);
+      expect(ask).not.toHaveBeenCalled();
+    });
+
+    it('com alteração pergunta: "Continuar editando" fica, "Descartar" sai', async () => {
+      component.form.controls.title.setValue('Rascunho');
+      component.form.markAsDirty();
+
+      answer(false);
+      expect(await component.canLeave()).toBe(false);
+      answer(true);
+      expect(await component.canLeave()).toBe(true);
+    });
+  });
+
   describe('edição', () => {
     beforeEach(() => setup({ id: '7' }));
 
@@ -149,6 +180,14 @@ describe('RequestForm', () => {
       expect(request.request.body.title).toBe('Notebook não carrega');
       request.flush({ ...saved, title: 'Notebook não carrega' });
       expect(router.navigate).toHaveBeenCalledWith(['/solicitacoes', 7]);
+    });
+
+    it('fica travado até a solicitação chegar, para nada digitado ser sobrescrito', () => {
+      expect(component.form.disabled).toBe(true);
+      component.save();
+
+      http.expectOne('/api/requests/7').flush(saved);
+      expect(component.form.enabled).toBe(true);
     });
 
     it('volta ao detalhe se a solicitação já saiu de Aberto', () => {

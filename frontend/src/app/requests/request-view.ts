@@ -1,14 +1,17 @@
 import { PoTagType } from '@po-ui/ng-components';
 import {
+  accessOf,
   AuthUser,
-  NEXT_STATUS,
+  modifyRefusal,
   REQUEST_STATUS_LABELS,
-  RequestDto,
   RequestStatus,
+  RequestSummary,
+  nextStatusFor as sharedNextStatusFor,
 } from '@portal/shared';
 
 // O que as telas de solicitação têm em comum: cores, prazo e o que cada pessoa pode fazer.
-// As permissões aqui só decidem quais botões aparecem; quem garante a regra é a API.
+// As permissões vêm de shared/ e aqui só decidem quais botões aparecem; quem garante a regra é
+// a API.
 
 export const DATE_TIME_FORMAT = 'dd/MM/yyyy HH:mm';
 
@@ -18,19 +21,38 @@ export const STATUS_TAG_TYPE: Record<RequestStatus, PoTagType> = {
   DONE: PoTagType.Success,
 };
 
-// Mesma definição do dashboard da API: ainda não concluída e com o prazo vencido.
-export function isOverdue(request: Pick<RequestDto, 'status' | 'dueAt'>, now = new Date()) {
-  return request.status !== 'DONE' && new Date(request.dueAt) < now;
+// Nome da lista conforme quem vê: o colaborador só vê as próprias. O mesmo nome vai no menu,
+// no título da lista e na trilha de navegação.
+export function listTitle(user: AuthUser | null): string {
+  return user?.role === 'AGENT' ? 'Solicitações' : 'Minhas solicitações';
 }
 
-// Editar e excluir: só quem abriu, e só enquanto está em Aberto.
-export function canModify(user: AuthUser | null, request: RequestDto): boolean {
-  return request.requester.id === user?.id && request.status === 'OPEN';
+// Rótulo de quem está atrasado. "Fora do prazo" combina com qualquer status ("Aberto",
+// "Em Atendimento"), sem o gênero de "atrasada" ao lado de "Aberto".
+export const OVERDUE_LABEL = 'Fora do prazo';
+
+// Prazo de categoria em texto. O prazo conta só horas úteis (segunda a sexta, 08:00–18:00),
+// por isso não vira dias: "24 horas úteis" não são um dia corrido.
+export function formatHours(hours: number): string {
+  return hours === 1 ? '1 hora útil' : `${hours} horas úteis`;
 }
 
-// Próximo status que este usuário pode aplicar: só o atendente avança o fluxo.
-export function nextStatusFor(user: AuthUser | null, request: RequestDto): RequestStatus | null {
-  return user?.role === 'AGENT' ? NEXT_STATUS[request.status] : null;
+// Editar e excluir, e o próximo status: as mesmas regras que a API aplica (shared/), aqui só
+// para decidir quais botões aparecem.
+export function canModify(user: AuthUser | null, request: RequestSummary): boolean {
+  return user !== null && modifyRefusal(user, accessOf(request)) === null;
+}
+
+export function nextStatusFor(
+  user: AuthUser | null,
+  request: RequestSummary,
+): RequestStatus | null {
+  return user ? sharedNextStatusFor(user, accessOf(request)) : null;
+}
+
+// Nome do atendente responsável; antes de alguém iniciar o atendimento, não há.
+export function assigneeName(request: RequestSummary): string {
+  return request.assignee?.name ?? 'Ninguém ainda';
 }
 
 export const ADVANCE_LABEL: Record<RequestStatus, string> = {
@@ -39,9 +61,9 @@ export const ADVANCE_LABEL: Record<RequestStatus, string> = {
   DONE: 'Concluir atendimento',
 };
 
-// Texto de uma linha do histórico: "Aberto → Em Atendimento" (ou só "Aberto" na abertura).
+// Texto de uma linha do histórico: "Aberto → Em Atendimento" (ou "Solicitação aberta").
 export function transitionLabel(from: RequestStatus | null, to: RequestStatus): string {
   return from
     ? `${REQUEST_STATUS_LABELS[from]} → ${REQUEST_STATUS_LABELS[to]}`
-    : `Solicitação aberta (${REQUEST_STATUS_LABELS[to]})`;
+    : 'Solicitação aberta';
 }

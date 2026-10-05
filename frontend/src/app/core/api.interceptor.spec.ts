@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { PoNotificationService } from '@po-ui/ng-components';
+import { SESSION_IDLE_HEADER, SESSION_REMAINING_HEADER } from '@portal/shared';
 import { apiInterceptor } from './api.interceptor';
 import { AuthService } from './auth.service';
 import { SessionTimer } from './session-timer';
@@ -41,14 +42,43 @@ describe('apiInterceptor', () => {
     request.flush({});
   });
 
-  it('a cada resposta da API recomeça a contagem do aviso de sessão perto de expirar', () => {
+  it('a cada resposta da API recomeça a contagem do aviso, com o que ela informa', () => {
     const restart = vi.spyOn(TestBed.inject(SessionTimer), 'restart');
 
     http.get('/api/categories').subscribe();
     expect(restart).not.toHaveBeenCalled();
+    backend.expectOne('/api/categories').flush([], {
+      headers: { [SESSION_IDLE_HEADER]: '15', [SESSION_REMAINING_HEADER]: '870' },
+    });
+
+    expect(restart).toHaveBeenCalledExactlyOnceWith(15, 870_000);
+    TestBed.inject(SessionTimer).stop();
+  });
+
+  it('uma resposta de erro com sessão válida (409) também recomeça a contagem', () => {
+    const restart = vi.spyOn(TestBed.inject(SessionTimer), 'restart');
+
+    http.get('/api/requests/1').subscribe({ error: () => undefined });
+    backend.expectOne('/api/requests/1').flush(
+      { detail: 'Conflito' },
+      {
+        status: 409,
+        statusText: 'Conflict',
+        headers: { [SESSION_IDLE_HEADER]: '30', [SESSION_REMAINING_HEADER]: '1800' },
+      },
+    );
+
+    expect(restart).toHaveBeenCalledExactlyOnceWith(30, 1_800_000);
+    TestBed.inject(SessionTimer).stop();
+  });
+
+  it('resposta sem o cabeçalho de sessão deixa o timer usar o padrão', () => {
+    const restart = vi.spyOn(TestBed.inject(SessionTimer), 'restart');
+
+    http.get('/api/categories').subscribe();
     backend.expectOne('/api/categories').flush([]);
 
-    expect(restart).toHaveBeenCalledOnce();
+    expect(restart).toHaveBeenCalledExactlyOnceWith(undefined, undefined);
     TestBed.inject(SessionTimer).stop();
   });
 

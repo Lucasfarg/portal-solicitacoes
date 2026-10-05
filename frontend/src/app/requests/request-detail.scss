@@ -1,18 +1,3 @@
-.breadcrumb ol {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-xs);
-  margin: 0 0 var(--spacing-xs);
-  padding: 0;
-  list-style: none;
-
-  // Separador desenhado pelo CSS: não entra na leitura.
-  li + li::before {
-    content: '/';
-    margin-right: var(--spacing-xs);
-  }
-}
-
 .tags {
   display: flex;
   flex-wrap: wrap;

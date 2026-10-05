@@ -23,10 +23,10 @@ export class PortalApi {
 
   listRequests(query: Partial<ListRequestsQuery>): Observable<RequestPage> {
     // Só vão para a query string os filtros preenchidos.
-    const params: Record<string, string | number> = {};
+    const params: Record<string, string> = {};
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== '') {
-        params[key] = value;
+        params[key] = String(value);
       }
     }
     return this.http.get<RequestPage>('/api/requests', { params });
