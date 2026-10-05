@@ -12,6 +12,12 @@ import {
 
 const HOUR = 3_600_000;
 
+// Horário de Fortaleza (UTC-3, o APP_TIMEZONE dos testes) escrito com o offset. 28/09/2026 é
+// uma segunda-feira; 25/09/2026, uma sexta.
+const at = (local: string) => new Date(`${local}-03:00`);
+// Prazo ainda por vencer quando o teste roda.
+const notDueYet = () => new Date(Date.now() + 22 * HOUR);
+
 describe('Dashboard (e2e)', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
@@ -29,26 +35,36 @@ describe('Dashboard (e2e)', () => {
     return response.body;
   };
 
-  // Grava a solicitação direto no banco, para controlar abertura, prazo e conclusão.
-  // Os tempos são em horas a partir de agora (negativo = passado).
+  // Grava a solicitação direto no banco, para controlar abertura, prazo, início e conclusão.
+  // Início e conclusão em horas corridas contadas da abertura; o painel responde em horas
+  // úteis (segunda a sexta, 08:00–18:00). Fora de Aberto, a carla é a responsável.
   async function seedRequest(options: {
     requesterId: number;
     status: RequestStatus;
-    openedHoursAgo: number;
-    dueInHours: number;
+    openedAt: Date;
+    dueAt: Date;
+    startedAfterHours?: number;
     doneAfterHours?: number;
   }) {
-    const createdAt = new Date(Date.now() - options.openedHoursAgo * HOUR);
+    const createdAt = options.openedAt;
+    const hoursAfterOpening = (hours: number) => new Date(createdAt.getTime() + hours * HOUR);
     const history: {
       fromStatus: RequestStatus | null;
       toStatus: RequestStatus;
       changedAt: Date;
     }[] = [{ fromStatus: null, toStatus: 'OPEN', changedAt: createdAt }];
+    if (options.startedAfterHours !== undefined) {
+      history.push({
+        fromStatus: 'OPEN',
+        toStatus: 'IN_PROGRESS',
+        changedAt: hoursAfterOpening(options.startedAfterHours),
+      });
+    }
     if (options.doneAfterHours !== undefined) {
       history.push({
         fromStatus: 'IN_PROGRESS',
         toStatus: 'DONE',
-        changedAt: new Date(createdAt.getTime() + options.doneAfterHours * HOUR),
+        changedAt: hoursAfterOpening(options.doneAfterHours),
       });
     }
     await prisma.request.create({
@@ -57,9 +73,10 @@ describe('Dashboard (e2e)', () => {
         description: 'Descrição',
         categoryId,
         requesterId: options.requesterId,
+        assigneeId: options.status === 'OPEN' ? null : carla.id,
         status: options.status,
         createdAt,
-        dueAt: new Date(Date.now() + options.dueInHours * HOUR),
+        dueAt: options.dueAt,
         history: { create: history.map((entry) => ({ ...entry, changedById: carla.id })) },
       },
     });
@@ -74,30 +91,47 @@ describe('Dashboard (e2e)', () => {
     carla = await createUser(app, 'carla', 'AGENT');
     categoryId = (await createCategory(app, 'TI', 24)).id;
 
-    // Ana: uma aberta com o prazo vencido, uma em atendimento no prazo
-    // e uma concluída em 10 h (o prazo vencido dela não conta como atraso).
-    await seedRequest({ requesterId: ana.id, status: 'OPEN', openedHoursAgo: 30, dueInHours: -6 });
+    // Ana, tudo aberto na segunda às 08:00: uma aberta com o prazo vencido, uma em atendimento
+    // no prazo (iniciada em 1 h) e uma concluída no prazo (iniciada em 4 h, concluída em 10 h,
+    // às 18:00; o prazo vencido depois da conclusão não conta como atraso).
+    const monday = at('2026-09-28T08:00:00');
+    await seedRequest({
+      requesterId: ana.id,
+      status: 'OPEN',
+      openedAt: monday,
+      dueAt: at('2026-09-29T08:00:00'),
+    });
     await seedRequest({
       requesterId: ana.id,
       status: 'IN_PROGRESS',
-      openedHoursAgo: 2,
-      dueInHours: 22,
+      openedAt: monday,
+      dueAt: notDueYet(),
+      startedAfterHours: 1,
     });
     await seedRequest({
       requesterId: ana.id,
       status: 'DONE',
-      openedHoursAgo: 40,
-      dueInHours: -16,
+      openedAt: monday,
+      dueAt: at('2026-09-30T12:00:00'),
+      startedAfterHours: 4,
       doneAfterHours: 10,
     });
-    // Bruno: uma aberta no prazo e uma concluída em 20 h.
-    await seedRequest({ requesterId: bruno.id, status: 'OPEN', openedHoursAgo: 1, dueInHours: 23 });
+    // Bruno: uma aberta no prazo e uma aberta na sexta às 17:00, iniciada na segunda às 09:00
+    // (64 h corridas, 2 h úteis) e concluída às 15:00 (70 h corridas, 8 h úteis), depois do
+    // prazo das 10:00.
+    await seedRequest({
+      requesterId: bruno.id,
+      status: 'OPEN',
+      openedAt: monday,
+      dueAt: notDueYet(),
+    });
     await seedRequest({
       requesterId: bruno.id,
       status: 'DONE',
-      openedHoursAgo: 50,
-      dueInHours: -26,
-      doneAfterHours: 20,
+      openedAt: at('2026-09-25T17:00:00'),
+      dueAt: at('2026-09-28T10:00:00'),
+      startedAfterHours: 64,
+      doneAfterHours: 70,
     });
   });
 
@@ -112,6 +146,9 @@ describe('Dashboard (e2e)', () => {
       inProgress: 1,
       done: 1,
       overdue: 1,
+      completedLate: 0,
+      // Média de 1 h e 4 h.
+      averageTimeToStartHours: 2.5,
       averageResolutionHours: 10,
     });
   });
@@ -123,12 +160,15 @@ describe('Dashboard (e2e)', () => {
       inProgress: 1,
       done: 2,
       overdue: 1,
-      // Média de 10 h e 20 h.
-      averageResolutionHours: 15,
+      completedLate: 1,
+      // Média de 1 h, 4 h e 2 h úteis (2,33), com uma casa.
+      averageTimeToStartHours: 2.3,
+      // Média de 10 h e 8 h úteis; em horas corridas daria 40 h.
+      averageResolutionHours: 9,
     });
   });
 
-  it('quem não tem solicitações recebe zeros e tempo médio nulo', async () => {
+  it('quem não tem solicitações recebe zeros e tempos médios nulos', async () => {
     const dora = await createUser(app, 'dora');
 
     expect(await summaryOf(dora.id)).toEqual({
@@ -137,6 +177,8 @@ describe('Dashboard (e2e)', () => {
       inProgress: 0,
       done: 0,
       overdue: 0,
+      completedLate: 0,
+      averageTimeToStartHours: null,
       averageResolutionHours: null,
     });
   });

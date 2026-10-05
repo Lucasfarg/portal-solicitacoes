@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module.js';
@@ -12,8 +13,9 @@ import { RequestsModule } from './requests/requests.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // .env único na raiz do repo; no Docker as variáveis vêm do ambiente.
-      envFilePath: '../.env',
+      // .env único na raiz do repo, achado a partir deste arquivo (vale para src/ e dist/,
+      // de qualquer pasta de onde a API rode); no Docker as variáveis vêm do ambiente.
+      envFilePath: fileURLToPath(new URL('../../.env', import.meta.url)),
       validate: validateEnv,
     }),
     PrismaModule,

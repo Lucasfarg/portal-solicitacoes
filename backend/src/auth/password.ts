@@ -13,10 +13,8 @@ export function hashPassword(password: string): Promise<string> {
   return argon2.hash(password, ARGON2_OPTIONS);
 }
 
-export async function verifyPassword(hash: string, password: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, password);
-  } catch {
-    return false;
-  }
+// Senha errada devolve false. Hash malformado ou falha do argon2 é erro de verdade: sobe,
+// vira 500 e fica no log, em vez de parecer "senha errada".
+export function verifyPassword(hash: string, password: string): Promise<boolean> {
+  return argon2.verify(hash, password);
 }

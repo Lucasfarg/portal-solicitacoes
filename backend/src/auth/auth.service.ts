@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { AuthUser, LoginInput } from '@portal/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { LoginThrottle } from './login-throttle.js';
 import { verifyPassword } from './password.js';
 import { SessionService } from './session.service.js';
 
@@ -11,18 +12,30 @@ const DUMMY_HASH =
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sessions: SessionService,
+    private readonly throttle: LoginThrottle,
   ) {}
 
-  async login({ username, password }: LoginInput): Promise<{ token: string; user: AuthUser }> {
+  async login(
+    { username, password }: LoginInput,
+    ip: string,
+  ): Promise<{ token: string; user: AuthUser }> {
+    // Grava a tentativa antes de conferir a senha (ver LoginThrottle).
+    await this.throttle.begin(ip, username);
+
     const user = await this.prisma.user.findUnique({ where: { username } });
     const passwordMatches = await verifyPassword(user?.passwordHash ?? DUMMY_HASH, password);
-    if (!user || !passwordMatches) {
-      // Mesma mensagem para usuário inexistente e senha errada.
+    // Usuário desativado recebe a mesma resposta: a tela não revela quem existe.
+    if (!user?.active || !passwordMatches) {
+      // Fica no log o login tentado e o IP, nunca a senha.
+      this.logger.warn(`Login recusado para "${username}" a partir de ${ip}`);
       throw new UnauthorizedException('Usuário ou senha inválidos');
     }
+    await this.throttle.succeed(ip, username);
 
     // Token novo a cada login: nenhuma sessão anterior ao login é reaproveitada.
     const token = await this.sessions.create(user.id);
