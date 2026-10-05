@@ -83,12 +83,6 @@ export const listRequestsQuerySchema = z
       .literal('true', 'Use overdue=true')
       .transform(() => true as const)
       .optional(),
-    // Instante da primeira página: a lista só considera as abertas até ele, para que
-    // solicitações novas não empurrem itens entre as páginas enquanto a pessoa navega. Sem
-    // ele, a API usa o instante dela e o devolve na resposta (RequestPage.asOf).
-    asOf: z.iso
-      .datetime('Use data e hora ISO 8601 em UTC (ex.: 2026-10-05T12:00:00.000Z)')
-      .optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(10),
   })
@@ -146,9 +140,6 @@ export const requestPageSchema = z.object({
   pageSize: z.number().int(),
   // Total de solicitações que atendem aos filtros, somando todas as páginas.
   total: z.number().int(),
-  // Instante que fixou a lista: o asOf pedido ou, sem ele, o relógio da API. A tela guarda
-  // na URL para as próximas páginas.
-  asOf: z.iso.datetime(),
 });
 
 export type RequestPage = z.infer<typeof requestPageSchema>;

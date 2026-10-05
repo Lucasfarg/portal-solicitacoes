@@ -8,10 +8,11 @@ import {
   type RequestStatus,
   statusChangeRefusal,
 } from '@portal/shared';
+import { DateTime } from 'luxon';
 
 // Regras de negócio das solicitações, em funções puras (sem banco): os erros de cada recusa
 // (as regras de quem pode o quê ficam em shared/, para o front usar as mesmas), como o prazo,
-// as horas úteis e o período do filtro são calculados.
+// as horas úteis e o período do filtro são calculados (as contas de data e fuso são do Luxon).
 
 // Filtro aplicado a toda consulta de lista e ao painel: atendente vê todas; colaborador, só as
 // que abriu. É a mesma regra de canView (shared/), no formato do Prisma.
@@ -78,72 +79,23 @@ export function overdueWhere(now: Date) {
   return [{ status: { not: 'DONE' as const } }, { dueAt: { lt: now } }];
 }
 
+// ---------- Datas no fuso da empresa (APP_TIMEZONE), com o Luxon ----------
+
 const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
-
-// ---------- Datas no fuso da empresa (APP_TIMEZONE), só com Intl ----------
-
-// Um formatador por fuso: construir um Intl.DateTimeFormat custa mais que usá-lo, e o prazo
-// consulta o relógio local várias vezes por dia percorrido.
-const formatters = new Map<string, Intl.DateTimeFormat>();
-
-function formatterFor(timeZone: string): Intl.DateTimeFormat {
-  let formatter = formatters.get(timeZone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-    formatters.set(timeZone, formatter);
-  }
-  return formatter;
-}
-
-// Data (AAAA-MM-DD) e hora que o relógio local marca, no fuso, num instante.
-function wallClock(instant: number, timeZone: string): { date: string; time: string } {
-  const parts = formatterFor(timeZone).formatToParts(instant);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? '';
-  return {
-    date: `${part('year')}-${part('month')}-${part('day')}`,
-    time: `${part('hour')}:${part('minute')}:${part('second')}`,
-  };
-}
-
-// Quanto o relógio local está à frente do UTC naquele instante (Fortaleza: -3 h).
-function offsetMs(instant: number, timeZone: string): number {
-  const { date, time } = wallClock(instant, timeZone);
-  return Date.parse(`${date}T${time}Z`) - instant;
-}
-
-// Instante em que o relógio local marca `hour`:00 do dia `date`. Chuta com o offset daquela
-// hora lida como UTC e confere com o offset do instante achado: num dia de mudança de
-// horário (horário de verão) os dois diferem, e vale o segundo. Uma hora que não existe
-// (pulada quando o relógio adianta) cai uma hora antes.
-function zonedInstant(date: string, hour: number, timeZone: string): number {
-  const asUtc = Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
-  const guess = asUtc - offsetMs(asUtc, timeZone);
-  return asUtc - offsetMs(guess, timeZone);
-}
-
-function nextDay(date: string): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
-}
 
 // Expediente: segunda a sexta, das 08:00 às 18:00 no fuso da empresa (feriados não entram).
 const WORKDAY_START_HOUR = 8;
 const WORKDAY_END_HOUR = 18;
 
-function isWeekday(date: string): boolean {
-  // Dia da semana da data do calendário: 0 = domingo, 6 = sábado.
-  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
-  return weekday !== 0 && weekday !== 6;
+// No Luxon, weekday vai de 1 (segunda) a 7 (domingo).
+const isWeekday = (day: DateTime) => day.weekday <= 5;
+
+// Início e fim do expediente de um dia, em milissegundos.
+function workday(day: DateTime): { start: number; end: number } {
+  return {
+    start: day.set({ hour: WORKDAY_START_HOUR }).toMillis(),
+    end: day.set({ hour: WORKDAY_END_HOUR }).toMillis(),
+  };
 }
 
 // Prazo de atendimento: o SLA da categoria conta só horas de expediente, a partir da abertura.
@@ -151,17 +103,17 @@ function isWeekday(date: string): boolean {
 export function dueDate(openedAt: Date, slaHours: number, timeZone: string): Date {
   let remainingMs = slaHours * HOUR_MS;
   let due = openedAt.getTime();
-  let day = wallClock(due, timeZone).date;
+  let day = DateTime.fromJSDate(openedAt, { zone: timeZone }).startOf('day');
   // Percorre os dias a partir da abertura, gastando as horas de expediente de cada um.
   while (remainingMs > 0) {
     if (isWeekday(day)) {
-      const start = Math.max(due, zonedInstant(day, WORKDAY_START_HOUR, timeZone));
-      const end = zonedInstant(day, WORKDAY_END_HOUR, timeZone);
-      const used = Math.min(remainingMs, Math.max(0, end - start));
-      due = start + used;
+      const { start, end } = workday(day);
+      const from = Math.max(due, start);
+      const used = Math.min(remainingMs, Math.max(0, end - from));
+      due = from + used;
       remainingMs -= used;
     }
-    day = nextDay(day);
+    day = day.plus({ days: 1 });
   }
   return new Date(due);
 }
@@ -170,15 +122,16 @@ export function dueDate(openedAt: Date, slaHours: number, timeZone: string): Dat
 // até o início e até a conclusão não contam noite nem fim de semana.
 export function businessHoursBetween(start: Date, end: Date, timeZone: string): number {
   let totalMs = 0;
-  let day = wallClock(start.getTime(), timeZone).date;
-  const lastDay = wallClock(end.getTime(), timeZone).date;
+  let day = DateTime.fromJSDate(start, { zone: timeZone }).startOf('day');
+  const lastDay = DateTime.fromJSDate(end, { zone: timeZone }).startOf('day');
   while (day <= lastDay) {
     if (isWeekday(day)) {
-      const from = Math.max(start.getTime(), zonedInstant(day, WORKDAY_START_HOUR, timeZone));
-      const to = Math.min(end.getTime(), zonedInstant(day, WORKDAY_END_HOUR, timeZone));
+      const hours = workday(day);
+      const from = Math.max(start.getTime(), hours.start);
+      const to = Math.min(end.getTime(), hours.end);
       totalMs += Math.max(0, to - from);
     }
-    day = nextDay(day);
+    day = day.plus({ days: 1 });
   }
   return totalMs / HOUR_MS;
 }
@@ -190,8 +143,9 @@ export function periodToUtcRange(
   from?: string,
   to?: string,
 ): { gte?: Date; lt?: Date } {
+  const startOfDay = (date: string) => DateTime.fromISO(date, { zone: timeZone }).startOf('day');
   return {
-    gte: from ? new Date(zonedInstant(from, 0, timeZone)) : undefined,
-    lt: to ? new Date(zonedInstant(nextDay(to), 0, timeZone)) : undefined,
+    gte: from ? startOfDay(from).toJSDate() : undefined,
+    lt: to ? startOfDay(to).plus({ days: 1 }).toJSDate() : undefined,
   };
 }

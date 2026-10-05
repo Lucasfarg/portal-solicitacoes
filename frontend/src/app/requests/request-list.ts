@@ -28,7 +28,7 @@ import {
   RequestSummary,
   RequestStatus,
 } from '@portal/shared';
-import { EMPTY, Subject, catchError, filter, map, merge, switchMap, tap } from 'rxjs';
+import { EMPTY, Subject, catchError, map, merge, switchMap, tap } from 'rxjs';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
 import { PortalApi } from '../core/portal-api';
@@ -77,7 +77,7 @@ function toRow(request: RequestSummary): Row {
   };
 }
 
-const EMPTY_PAGE: Omit<RequestPage, 'asOf'> = { items: [], page: 1, pageSize: 10, total: 0 };
+const EMPTY_PAGE: RequestPage = { items: [], page: 1, pageSize: 10, total: 0 };
 
 // Valor da opção "Todas" nos filtros de situação e categoria. O po-select trata o valor
 // vazio como "nada escolhido" e deixaria o campo em branco, na tela e para o leitor de tela.
@@ -158,10 +158,7 @@ export class RequestList {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   private readonly reloads = new Subject<void>();
-  protected readonly page = signal<Omit<RequestPage, 'asOf'>>(EMPTY_PAGE);
-  // asOf que a própria tela acabou de gravar na URL com o instante devolvido pela API: a
-  // mudança de URL que ele causa não precisa de outra busca.
-  private stampedAsOf: string | null = null;
+  protected readonly page = signal<RequestPage>(EMPTY_PAGE);
   protected readonly rows = computed(() => this.page().items.map(toRow));
 
   // Sem ordenar pelo cabeçalho: a lista vem da API, das mais recentes para as mais antigas, e
@@ -219,13 +216,10 @@ export class RequestList {
       );
 
     // A URL é a fonte da verdade dos filtros e da página: cada mudança na query string
-    // refaz a busca (dá para recarregar, voltar e compartilhar o link). O "Tentar de novo"
-    // repete a mesma URL, que não muda a query string; esse caso passa pelo `reloads`. O
-    // switchMap descarta a resposta de uma busca antiga se outra começou depois.
-    merge(
-      this.route.queryParams.pipe(filter((params) => !this.isOwnStamp(params))),
-      this.reloads.pipe(map(() => this.route.snapshot.queryParams)),
-    )
+    // refaz a busca (dá para recarregar, voltar e compartilhar o link). O "Tentar de novo" e o
+    // "Filtrar" com os mesmos filtros não mudam a query string; esses casos passam pelo
+    // `reloads`. O switchMap descarta a resposta de uma busca antiga se outra começou depois.
+    merge(this.route.queryParams, this.reloads.pipe(map(() => this.route.snapshot.queryParams)))
       .pipe(
         map((params) => this.readQuery(params)),
         tap((query) => {
@@ -235,7 +229,6 @@ export class RequestList {
         }),
         switchMap((query) =>
           this.api.listRequests(query).pipe(
-            tap((page) => this.stampAsOf(query, page)),
             catchError((error: unknown) => {
               this.error.set(errorMessage(error));
               this.page.set(EMPTY_PAGE);
@@ -254,32 +247,6 @@ export class RequestList {
 
   protected reload(): void {
     this.reloads.next();
-  }
-
-  // O asOf ("até agora") fixa o conjunto da busca: só entram as solicitações abertas até
-  // aquele instante, e a página 2 não muda enquanto a pessoa pagina, mesmo com solicitações
-  // novas chegando. A primeira busca vai sem ele (menu, painel, "Filtrar"); a API usa o relógio
-  // dela e devolve o instante, que fica na URL para as próximas páginas. O relógio do
-  // navegador não entra: um PC com a hora atrasada esconderia o que acabou de ser aberto.
-  private stampAsOf(query: ListRequestsQuery, page: RequestPage): void {
-    if (query.asOf) {
-      return;
-    }
-    this.stampedAsOf = page.asOf;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { asOf: page.asOf },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
-  }
-
-  private isOwnStamp(params: Params): boolean {
-    if (this.stampedAsOf === null || params['asOf'] !== this.stampedAsOf) {
-      return false;
-    }
-    this.stampedAsOf = null;
-    return true;
   }
 
   // A query string é validada com o mesmo schema que a API usa para os filtros. Um valor
@@ -317,7 +284,7 @@ export class RequestList {
       return;
     }
     // Filtro sem valor vira null, que o roteador tira da URL. Sem `page`: filtrar volta à
-    // página 1. Sem `asOf`: a busca nova traz também o que foi aberto desde a última.
+    // página 1.
     this.navigate({
       q: q.trim() || null,
       status: status === ALL ? null : status,
@@ -352,7 +319,7 @@ export class RequestList {
     this.filters.controls.q.setValue('');
   }
 
-  // Trocar de página mantém os filtros e o asOf da URL.
+  // Trocar de página mantém os filtros da URL.
   protected goToPage(page: number): void {
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -365,9 +332,14 @@ export class RequestList {
     void this.router.navigate(['/solicitacoes/nova']);
   }
 
-  // "Filtrar" e "Limpar filtros" tiram o asOf da URL, que muda (e a busca é refeita) mesmo com
-  // os mesmos filtros; o que foi digitado e não aplicado é trocado pelo que está na URL.
+  // "Filtrar" e "Limpar filtros" refazem a busca mesmo quando a URL fica igual (os mesmos
+  // filtros): o que foi digitado e não aplicado é trocado pelo que está na URL.
   private navigate(queryParams: Params): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams });
+    const before = this.router.url;
+    void this.router.navigate([], { relativeTo: this.route, queryParams }).then(() => {
+      if (this.router.url === before) {
+        this.reload();
+      }
+    });
   }
 }

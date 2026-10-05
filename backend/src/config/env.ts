@@ -1,16 +1,7 @@
+import { IANAZone } from 'luxon';
 import { z } from 'zod';
 
 export const DEFAULT_TIMEZONE = 'America/Fortaleza';
-
-// Fuso IANA aceito pelo Intl (o mesmo que faz as contas de data em request-rules.ts).
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('pt-BR', { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -27,7 +18,10 @@ export const envSchema = z.object({
   // Fuso do expediente e das datas do filtro: decide onde começa cada dia e o horário útil.
   APP_TIMEZONE: z
     .string()
-    .refine(isTimeZone, 'Fuso horário IANA inválido (ex.: America/Fortaleza)')
+    .refine(
+      (value) => IANAZone.isValidZone(value),
+      'Fuso horário IANA inválido (ex.: America/Fortaleza)',
+    )
     .default(DEFAULT_TIMEZONE),
   // De onde a API aceita o X-Forwarded-For (sintaxe do "trust proxy" do Express): "loopback",
   // "uniquelocal", IPs ou faixas separados por vírgula.

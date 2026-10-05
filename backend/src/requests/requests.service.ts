@@ -67,20 +67,13 @@ export class RequestsService {
 
   async list(user: AuthUser, query: ListRequestsQuery): Promise<RequestPage> {
     const now = new Date();
-    // Sem asOf (primeira busca), vale o instante da API, devolvido na resposta para a tela
-    // pedir as próximas páginas com ele: a lista não depende do relógio do navegador.
-    const asOf = query.asOf ? new Date(query.asOf) : now;
     // Filtro não informado fica `undefined`, e o Prisma o ignora.
     const where: Prisma.RequestWhereInput = {
       ...visibleTo(user),
       deletedAt: null,
       status: query.status,
       categoryId: query.categoryId,
-      createdAt: {
-        ...periodToUtcRange(this.timeZone, query.from, query.to),
-        // Paginação estável: o que foi aberto depois da primeira página não entra.
-        lte: asOf,
-      },
+      createdAt: periodToUtcRange(this.timeZone, query.from, query.to),
       title: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
       AND: query.overdue ? overdueWhere(now) : undefined,
     };
@@ -101,7 +94,6 @@ export class RequestsService {
       page: query.page,
       pageSize: query.pageSize,
       total,
-      asOf: asOf.toISOString(),
     };
   }
 

@@ -1,8 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import type { Request, Response } from 'express';
 import helmet from 'helmet';
-import { accessLog } from './common/access-log.js';
+import morgan from 'morgan';
 import { ProblemDetailsFilter } from './common/problem-details.filter.js';
 import { createValidationPipe } from './common/validation.js';
 import type { Env } from './config/env.js';
@@ -30,9 +31,15 @@ export function configureApp(app: NestExpressApplication) {
     }),
   );
   app.use(cookieParser());
-  // Uma linha por requisição (método, caminho, status, duração); nos testes ficaria só ruído.
+  // Log de acesso (morgan): método, caminho, status e duração de cada requisição, sem corpo
+  // nem cookies. Fica de fora nos testes (só ruído) e o healthcheck do Docker, que chama a
+  // cada poucos segundos.
   if (config.get('NODE_ENV', { infer: true }) !== 'test') {
-    app.use(accessLog());
+    app.use(
+      morgan<Request, Response>('tiny', {
+        skip: (request) => request.originalUrl === '/api/health',
+      }),
+    );
   }
   app.setGlobalPrefix('api');
   app.useGlobalPipes(createValidationPipe());
