@@ -22,6 +22,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      # Só a API: a última etapa do Dockerfile é a imagem de hospedagem, com o frontend junto.
+      target: runtime
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-portal}:${POSTGRES_PASSWORD:-portal}@db:5432/${POSTGRES_DB:-portal}
       PORT: 3000

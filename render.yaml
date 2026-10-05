@@ -1,0 +1,28 @@
+# Publicação no Render (plano gratuito): um serviço web com a imagem única (API + telas)
+# e um PostgreSQL. Em Render > New > Blueprint, apontar para este repositório.
+services:
+  - type: web
+    name: portal-solicitacoes
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portal-solicitacoes-db
+          property: connectionString
+      # O Render entrega em HTTPS: cookie com Secure e prefixo __Host-.
+      - key: HTTPS_ONLY
+        value: "true"
+      # O proxy do Render chega por endereço de rede privada.
+      - key: TRUST_PROXY
+        value: loopback, linklocal, uniquelocal
+      - key: APP_TIMEZONE
+        value: America/Fortaleza
+
+databases:
+  - name: portal-solicitacoes-db
+    plan: free
+    postgresMajorVersion: "17"
