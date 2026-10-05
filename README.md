@@ -12,9 +12,18 @@ Documentação complementar:
 - [Dicionário de Dados](docs/dicionario-de-dados.md)
 - Scripts SQL de criação do banco, aplicados em ordem: [`20260930102819_init`](backend/prisma/migrations/20260930102819_init/migration.sql), [`20261005084126_integrity_and_indexes`](backend/prisma/migrations/20261005084126_integrity_and_indexes/migration.sql) e [`20261005120000_assignee_timezone_login_failures`](backend/prisma/migrations/20261005120000_assignee_timezone_login_failures/migration.sql)
 
-## Executar com Docker (recomendado)
+## Pré-requisitos
 
-Pré-requisito: Docker com Docker Compose v2. As portas 8080 e 5432 precisam estar livres.
+| Item | Versão | Observação |
+| --- | --- | --- |
+| Linguagem | TypeScript sobre Node.js 24 | API e frontend |
+| Banco de dados | PostgreSQL 18 | |
+| Dependências | pnpm 12 | Com o Node instalado: `corepack enable`. As bibliotecas vêm com `pnpm install` |
+| Docker com Docker Compose v2 | | Opcional: com ele, nenhum dos itens acima precisa estar instalado |
+
+## Instalação e execução com Docker (recomendado)
+
+As portas 8080 e 5432 precisam estar livres.
 
 ```bash
 git clone https://github.com/Lucasfarg/portal-solicitacoes.git
@@ -30,15 +39,56 @@ As portas são publicadas só em `127.0.0.1`: o portal e o banco respondem nesta
 
 Para parar: `docker compose down`. Com `-v` o banco também é apagado.
 
+## Instalação sem Docker
+
+### Banco de dados
+
+Com um PostgreSQL local:
+
+```sql
+CREATE USER portal WITH PASSWORD 'portal';
+CREATE DATABASE portal OWNER portal;
+```
+
+Ou use só o banco do compose: `docker compose up -d --wait db`.
+
+Crie o arquivo de configuração e, se o seu banco tiver outro usuário, senha ou porta, ajuste `DATABASE_URL` nele:
+
+```bash
+cp .env.example .env
+```
+
+### Backend e frontend
+
+Os dois ficam no mesmo workspace: um comando instala as dependências de ambos. Os seguintes criam as tabelas (migrações SQL) e os dados de demonstração.
+
+```bash
+pnpm install
+pnpm build:shared
+pnpm --filter backend db:deploy
+pnpm --filter backend db:seed
+```
+
+## Execução
+
+Cada um em um terminal:
+
+```bash
+pnpm dev:api    # backend: API em http://localhost:3000/api
+pnpm dev:web    # frontend: portal em http://localhost:4200
+```
+
+O servidor de desenvolvimento do Angular encaminha `/api` para a API, então o Swagger também responde em <http://localhost:4200/api/docs>.
+
 ## Acesso
 
-| O quê | Endereço |
-| --- | --- |
-| Portal | <http://localhost:8080> |
-| Documentação interativa da API (Swagger) | <http://localhost:8080/api/docs> |
-| Verificação de saúde da API | <http://localhost:8080/api/health> |
+| O quê | Com Docker | Sem Docker |
+| --- | --- | --- |
+| Portal | <http://localhost:8080> | <http://localhost:4200> |
+| Documentação interativa da API (Swagger) | <http://localhost:8080/api/docs> | <http://localhost:4200/api/docs> |
+| Verificação de saúde da API | <http://localhost:8080/api/health> | <http://localhost:3000/api/health> |
 
-Usuários de demonstração, todos com a senha `Senha@123`:
+Usuários de teste, todos com a senha `Senha@123`:
 
 | Usuário | Perfil | O que pode fazer |
 | --- | --- | --- |
@@ -50,52 +100,9 @@ Num banco vazio, o seed cria também dez solicitações de exemplo da `ana` e do
 
 Para testar pelo Swagger, execute primeiro `POST /api/auth/login`: o navegador guarda o cookie de sessão e as demais rotas passam a responder.
 
-## Executar sem Docker
-
-Pré-requisitos:
-
-| Item | Versão |
-| --- | --- |
-| Node.js | 24 |
-| pnpm | 12 (com o Node instalado: `corepack enable`) |
-| PostgreSQL | 18 |
-
-1. Crie o banco. Com um PostgreSQL local:
-
-   ```sql
-   CREATE USER portal WITH PASSWORD 'portal';
-   CREATE DATABASE portal OWNER portal;
-   ```
-
-   Ou use só o banco do compose: `docker compose up -d --wait db`.
-
-2. Crie o arquivo de configuração e, se o seu banco tiver outro usuário, senha ou porta, ajuste `DATABASE_URL` nele:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Instale as dependências, crie as tabelas e os dados de demonstração:
-
-   ```bash
-   pnpm install
-   pnpm build:shared
-   pnpm --filter backend db:deploy
-   pnpm --filter backend db:seed
-   ```
-
-4. Suba a API e o frontend, cada um em um terminal:
-
-   ```bash
-   pnpm dev:api    # API em http://localhost:3000/api
-   pnpm dev:web    # portal em http://localhost:4200
-   ```
-
-Acesse <http://localhost:4200>. O servidor de desenvolvimento do Angular encaminha `/api` para a API, então o Swagger também responde em <http://localhost:4200/api/docs>.
-
 ## Configuração
 
-Um único `.env` na raiz do repositório, lido pela API, pelo Prisma e pelo compose. O modelo é o `.env.example`.
+Um único `.env` na raiz do repositório, lido pela API, pelo Prisma e pelo compose. O modelo é o `.env.example`. As credenciais de demonstração estão na seção Acesso.
 
 | Variável | Padrão | Descrição |
 | --- | --- | --- |
