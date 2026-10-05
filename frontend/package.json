@@ -23,6 +23,7 @@
     "@angular/platform-browser-dynamic": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@po-ui/ng-components": "21.31.0",
+    "@po-ui/ng-templates": "21.31.0",
     "@po-ui/style": "21.31.0",
     "@portal/shared": "workspace:*",
     "rxjs": "~7.8.0",

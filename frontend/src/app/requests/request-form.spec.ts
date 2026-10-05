@@ -37,7 +37,6 @@ describe('RequestForm', () => {
   let router: Router;
   const notification = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
 
-  // Monta o formulário na rota de nova solicitação (sem id) ou de edição (com id).
   function setup(routeParams: Record<string, string> = {}) {
     vi.resetAllMocks();
     TestBed.configureTestingModule({
@@ -127,7 +126,6 @@ describe('RequestForm', () => {
   describe('saída com alterações não salvas', () => {
     beforeEach(() => setup());
 
-    // A janela de confirmação, com a resposta da pessoa já escolhida.
     const answer = (confirm: boolean) =>
       vi
         .spyOn(component['dialog'](), 'ask')

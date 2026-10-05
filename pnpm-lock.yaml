@@ -305,6 +305,9 @@ importers:
       '@po-ui/ng-components':
         specifier: 21.31.0
         version: 21.31.0(b7d73248d1680bc91797cc121a233634)
+      '@po-ui/ng-templates':
+        specifier: 21.31.0
+        version: 21.31.0(2543ad819a548d690d843f28c93df265)
       '@po-ui/style':
         specifier: 21.31.0
         version: 21.31.0
@@ -1958,6 +1961,21 @@ packages:
       '@angular-devkit/core': ^21
       '@angular-devkit/schematics': ^21
       '@schematics/angular': ^21
+
+  '@po-ui/ng-templates@21.31.0':
+    resolution: {integrity: sha512-1pPY8/CPXF7IdcAYXM1t3AeI9VTO1790Q7d3s5u+W6Nie0RV43eXCEGdyJ09o10LTxaV/TvSbdA3RJePwOM+Sg==}
+    peerDependencies:
+      '@angular/animations': ^21
+      '@angular/common': ^21
+      '@angular/compiler': ^21
+      '@angular/core': ^21
+      '@angular/forms': ^21
+      '@angular/platform-browser': ^21
+      '@angular/platform-browser-dynamic': ^21
+      '@angular/router': ^21
+      '@po-ui/ng-components': 21.31.0
+      rxjs: ~7.8.1
+      zone.js: ~0.15.0
 
   '@po-ui/style@21.31.0':
     resolution: {integrity: sha512-eATKe5xjLdqe4Vi1I20pMIzJzJ6hnFWdifEqP3/LyDc8BxSyBdfA1Ht7mvAr1qO5KIrQ3xcNMQ3REdGEbS1NGA==}
@@ -6995,6 +7013,26 @@ snapshots:
       '@angular-devkit/schematics': 21.2.24(chokidar@5.0.0)
       '@schematics/angular': 21.2.24(chokidar@5.0.0)
       jsonc-parser: 3.3.1
+
+  '@po-ui/ng-templates@21.31.0(2543ad819a548d690d843f28c93df265)':
+    dependencies:
+      '@angular/animations': 21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))
+      '@angular/common': 21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2)
+      '@angular/compiler': 21.2.24
+      '@angular/core': 21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)
+      '@angular/forms': 21.2.24(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@21.2.24(@angular/animations@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(rxjs@7.8.2)
+      '@angular/platform-browser': 21.2.24(@angular/animations@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))
+      '@angular/platform-browser-dynamic': 21.2.24(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/compiler@21.2.24)(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@21.2.24(@angular/animations@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))
+      '@angular/router': 21.2.24(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(@angular/platform-browser@21.2.24(@angular/animations@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(@angular/common@21.2.24(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@21.2.24(@angular/compiler@21.2.24)(rxjs@7.8.2)(zone.js@0.15.1)))(rxjs@7.8.2)
+      '@po-ui/ng-components': 21.31.0(b7d73248d1680bc91797cc121a233634)
+      '@po-ui/ng-schematics': 21.31.0(@angular-devkit/core@21.2.24(chokidar@5.0.0))(@angular-devkit/schematics@21.2.24(chokidar@5.0.0))(@schematics/angular@21.2.24(chokidar@5.0.0))
+      rxjs: 7.8.2
+      tslib: 2.8.1
+      zone.js: 0.15.1
+    transitivePeerDependencies:
+      - '@angular-devkit/core'
+      - '@angular-devkit/schematics'
+      - '@schematics/angular'
 
   '@po-ui/style@21.31.0': {}
 

@@ -56,8 +56,7 @@
     </div>
   </form>
 
-  <!-- Sempre na página, vazio quando está tudo bem: uma região viva (role="status") criada já
-       com a mensagem costuma não ser lida; existindo antes, a mensagem de erro é anunciada. -->
+  <!-- Sempre na página: uma região viva criada já com a mensagem costuma não ser lida. -->
   <app-load-state [error]="error()" (retry)="reload()" />
 
   @if (isMobile()) {
@@ -97,11 +96,12 @@
       [p-items]="rows()"
       [p-loading]="loading()"
       [p-striped]="true"
+      p-spacing="small"
+      [p-text-wrap]="true"
       [p-hide-columns-manager]="true"
       [p-hide-table-search]="true"
       [p-literals]="tableLiterals"
     >
-      <!-- Data do prazo e, quando vencido, a etiqueta logo depois. -->
       <ng-template p-table-column-template p-property="due" let-due>
         <span class="due">
           {{ due.at | date: dateTimeFormat }}
@@ -119,9 +119,7 @@
       [p-disabled]="loading() || !!error() || page().page <= 1"
       (p-click)="goToPage(page().page - 1)"
     />
-    <!-- role="status": o leitor de tela anuncia o resultado quando o filtro ou a página muda.
-         Enquanto a busca não volta, diz que está carregando, e não "0 solicitações". Se a busca
-         falhou, fica vazio: quem anuncia é o aviso de erro acima, e não "0 solicitações". -->
+    <!-- Carregando ou com erro, não mostra "0 solicitações"; o erro é anunciado acima. -->
     <span class="po-font-text" role="status">
       @if (loading()) {
         Carregando…

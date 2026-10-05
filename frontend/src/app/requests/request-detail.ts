@@ -73,8 +73,6 @@ export class RequestDetailPage {
     ],
   }));
 
-  // O primeiro botão é o principal; o PO UI mostra os três lado a lado e, no celular, guarda o
-  // segundo e o terceiro em "Outras ações".
   protected readonly actions = computed<PoPageAction[]>(() => {
     const next = this.nextStatus();
     return [
@@ -95,7 +93,6 @@ export class RequestDetailPage {
     ];
   });
 
-  // O histórico só cresce no fim e já vem em ordem.
   protected readonly historyColumns: PoTableColumn[] = [
     { property: 'changedAt', label: 'Quando', type: 'dateTime', format: DATE_TIME_FORMAT },
     { property: 'change', label: 'O que mudou' },
@@ -117,9 +114,6 @@ export class RequestDetailPage {
     return request?.overdue ?? false;
   });
 
-  // Os botões dependem de quem está vendo e da situação da solicitação:
-  // o atendente avança o status (regras em request-view.ts); o dono edita e exclui enquanto
-  // está em Aberto.
   protected readonly nextStatus = computed(() => {
     const request = this.request();
     return request ? nextStatusFor(this.auth.user(), request) : null;
@@ -143,7 +137,6 @@ export class RequestDetailPage {
   }
 
   protected load(): void {
-    // Endereço com id que não é número: nem pergunta à API.
     if (!Number.isInteger(this.id) || this.id < 1) {
       this.leave('Solicitação não encontrada.');
       return;
@@ -157,9 +150,8 @@ export class RequestDetailPage {
       },
       error: (error: unknown) => {
         this.loading.set(false);
-        // Não existe ou é de outro colaborador (a API responde 404 aos dois, para não revelar
-        // que existe): avisa e volta para a lista. Outra falha (servidor fora do ar) não diz
-        // nada sobre a solicitação: a pessoa fica aqui e pode tentar de novo.
+        // 404 vale também para a de outro colaborador (a API não revela que existe): volta
+        // para a lista. Outra falha deixa a pessoa aqui para tentar de novo.
         const status = error instanceof HttpErrorResponse ? error.status : 0;
         if (status === 404) {
           this.leave(errorMessage(error));
@@ -183,7 +175,6 @@ export class RequestDetailPage {
     this.dialog().ask(
       {
         title: ADVANCE_LABEL[next],
-        // Quem inicia o atendimento vira o responsável: só ele poderá concluir.
         message:
           next === 'IN_PROGRESS'
             ? `A solicitação passará para "${REQUEST_STATUS_LABELS[next]}" e você será o responsável por ela. Essa mudança não pode ser desfeita.`
@@ -199,7 +190,7 @@ export class RequestDetailPage {
       next: (request) => {
         this.request.set(request);
         this.notification.success(`Situação alterada para "${REQUEST_STATUS_LABELS[next]}".`);
-        // O botão que tinha o foco muda de nome ou some (não há status depois de Concluído).
+        // O botão que tinha o foco muda de nome ou some.
         this.page().focusTitle();
       },
       error: (error: unknown) => this.showConflict(error),
@@ -231,8 +222,7 @@ export class RequestDetailPage {
     });
   }
 
-  // A API recusou (409: a situação mudou enquanto a tela estava aberta; 403: sem permissão).
-  // Mostra o motivo e recarrega, para os botões refletirem o estado atual.
+  // 409 (situação mudou) ou 403: mostra o motivo e recarrega para os botões refletirem o estado.
   private showConflict(error: unknown): void {
     this.notification.error(errorMessage(error));
     this.load();

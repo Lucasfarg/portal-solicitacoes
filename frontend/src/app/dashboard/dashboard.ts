@@ -1,10 +1,19 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Params, Router } from '@angular/router';
-import { PoButtonModule, PoPageModule, PoWidgetModule } from '@po-ui/ng-components';
+import {
+  PoButtonKind,
+  PoButtonModule,
+  PoChartModule,
+  PoChartOptions,
+  PoChartSerie,
+  PoChartType,
+  PoPageModule,
+  PoWidgetModule,
+} from '@po-ui/ng-components';
 import { DashboardSummary, REQUEST_STATUS_LABELS } from '@portal/shared';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
-import { PageA11y } from '../core/po-a11y';
+import { ChartA11y, PageA11y } from '../core/po-a11y';
 import { PortalApi } from '../core/portal-api';
 import { LoadState } from '../layout/load-state';
 import { OVERDUE_LABEL } from '../requests/request-view';
@@ -13,14 +22,22 @@ interface Card {
   label: string;
   value: string;
   help: string;
-  // Filtro aplicado na lista quando o cartão é aberto (os tempos médios e as concluídas
-  // fora do prazo não têm lista).
   filter?: Params;
 }
 
+const STATUS_COLORS = { open: '#1f6fb2', inProgress: '#b86e00', done: '#2e7d5b' };
+
 @Component({
   selector: 'app-dashboard',
-  imports: [LoadState, PoPageModule, PoWidgetModule, PoButtonModule, PageA11y],
+  imports: [
+    LoadState,
+    PoPageModule,
+    PoWidgetModule,
+    PoButtonModule,
+    PoChartModule,
+    PageA11y,
+    ChartA11y,
+  ],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -29,25 +46,33 @@ export class Dashboard {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  private readonly summary = signal<DashboardSummary | null>(null);
+  protected readonly summary = signal<DashboardSummary | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
-  // A API já devolve os números no escopo de quem está logado.
+  protected readonly donut = PoChartType.Donut;
+  protected readonly bar = PoChartType.Bar;
+  protected readonly tertiary = PoButtonKind.tertiary;
+  private readonly chartHeader = { hideExpand: true, hideExportCsv: true, hideExportImage: true };
+  protected readonly donutOptions: PoChartOptions = {
+    legend: true,
+    innerRadius: 62,
+    header: this.chartHeader,
+  };
+  protected readonly barOptions: PoChartOptions = { legend: false, header: this.chartHeader };
+
   protected readonly subtitle = computed(() =>
     this.auth.user()?.role === 'AGENT'
       ? 'Números de todas as solicitações'
       : 'Números das suas solicitações',
   );
 
-  protected readonly cards = computed<Card[]>(() => {
+  protected readonly statusCards = computed<Card[]>(() => {
     const summary = this.summary();
     if (!summary) {
       return [];
     }
-    // Os cartões de status usam o mesmo nome da etiqueta e do filtro da lista.
     return [
-      { label: 'Total', value: String(summary.total), help: 'Todas as situações', filter: {} },
       {
         label: REQUEST_STATUS_LABELS.OPEN,
         value: String(summary.open),
@@ -66,6 +91,16 @@ export class Dashboard {
         help: 'Atendimento concluído',
         filter: { status: 'DONE' },
       },
+      { label: 'Total', value: String(summary.total), help: 'Todas as situações', filter: {} },
+    ];
+  });
+
+  protected readonly deadlineCards = computed<Card[]>(() => {
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
+    return [
       {
         label: OVERDUE_LABEL,
         value: String(summary.overdue),
@@ -90,6 +125,35 @@ export class Dashboard {
     ];
   });
 
+  protected readonly statusSeries = computed<PoChartSerie[]>(() => {
+    const summary = this.summary();
+    if (!summary) {
+      return [];
+    }
+    return [
+      { label: REQUEST_STATUS_LABELS.OPEN, data: summary.open, color: STATUS_COLORS.open },
+      {
+        label: REQUEST_STATUS_LABELS.IN_PROGRESS,
+        data: summary.inProgress,
+        color: STATUS_COLORS.inProgress,
+      },
+      { label: REQUEST_STATUS_LABELS.DONE, data: summary.done, color: STATUS_COLORS.done },
+    ];
+  });
+
+  // O gráfico de barras desenha de baixo para cima: invertida, a maior categoria fica no alto.
+  private readonly categories = computed(() => [...(this.summary()?.byCategory ?? [])].reverse());
+  protected readonly categoryNames = computed(() =>
+    this.categories().map((category) => category.name),
+  );
+  protected readonly categorySeries = computed<PoChartSerie[]>(() => [
+    {
+      label: 'Solicitações',
+      data: this.categories().map((category) => category.total),
+      color: '#0e6b7a',
+    },
+  ]);
+
   constructor() {
     this.load();
   }
@@ -109,14 +173,17 @@ export class Dashboard {
     });
   }
 
+  protected newRequest(): void {
+    void this.router.navigate(['/solicitacoes/nova']);
+  }
+
   protected openList(filter: Params): void {
     void this.router.navigate(['/solicitacoes'], { queryParams: filter });
   }
 }
 
-// Sempre em horas úteis ("12,5 h úteis"), sem virar dias: 24 h úteis são mais de dois dias de
-// expediente. Sem nenhuma solicitação no ponto medido não há média; um traço não seria lido
-// pelo leitor de tela.
+// Sempre em horas úteis, sem virar dias. Sem média, um texto em vez de traço, que o leitor
+// de tela não leria.
 function formatAverage(hours: number | null): string {
   if (hours === null) {
     return 'Sem dados';

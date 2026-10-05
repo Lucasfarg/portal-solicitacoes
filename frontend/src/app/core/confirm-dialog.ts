@@ -18,13 +18,16 @@ export interface ConfirmQuestion {
 
 let nextId = 0;
 
-// Janela de confirmação sobre o po-modal. O po-modal prende o foco dentro dela, fecha com Esc e
-// devolve o foco ao botão que abriu; o foco entra em "Cancelar", o primeiro botão. Ele não
-// declara que é uma janela de diálogo: aqui o role, o aria-modal e os ids do título e da
-// mensagem são gravados no elemento que ele desenha.
+// O po-modal não declara que é um diálogo: role, aria-modal e os ids do título e da mensagem
+// são gravados no elemento que ele desenha. Ele também deixa o Tab escapar para a página de
+// trás e ignora o Esc quando o foco saiu: os dois são tratados aqui.
 @Component({
   selector: 'app-confirm-dialog',
   imports: [PoModalModule],
+  host: {
+    '(document:focusin)': 'keepFocusInside($event)',
+    '(document:keydown.escape)': 'closeOnEscape()',
+  },
   template: `
     <po-modal
       #modal
@@ -43,7 +46,7 @@ let nextId = 0;
   `,
 })
 export class ConfirmDialog {
-  // Cada janela tem ids próprios: pode haver mais de uma na página (a do Shell e a da tela).
+  // Pode haver mais de uma janela na página (a do Shell e a da tela).
   protected readonly id = `confirm-${nextId++}`;
   protected readonly question = signal<ConfirmQuestion>({ title: '', message: '' });
 
@@ -64,8 +67,6 @@ export class ConfirmDialog {
   private onConfirm: () => void = () => undefined;
   private onCancel: () => void = () => undefined;
 
-  // Abre a janela; `onConfirm` só roda se a pessoa escolher o botão de confirmar, e
-  // `onCancel` quando ela cancela ou fecha com Esc.
   ask(
     question: ConfirmQuestion,
     onConfirm: () => void,
@@ -81,13 +82,10 @@ export class ConfirmDialog {
     this.onConfirm = onConfirm;
     this.onCancel = onCancel;
     this.modal().open();
-    // O po-modal leva o foco para dentro dele num setTimeout; se a janela ainda não foi desenhada
-    // (o app agrupa os eventos e renderiza no quadro seguinte), o foco fica no botão de trás e a
-    // janela não prende o Tab. Desenhar agora, antes do timer, evita isso.
+    // O po-modal move o foco num setTimeout; sem desenhar antes, o foco fica no botão de trás.
     this.changes.detectChanges();
     this.describeDialog();
-    // O foco entra já, em "Cancelar" (o primeiro botão depois do X); o po-modal faria o mesmo
-    // só no timer, e até lá o Tab ainda andaria pela página de trás.
+    // Foco já em "Cancelar"; o po-modal só faria isso no timer.
     this.host.nativeElement.querySelectorAll<HTMLElement>('.po-modal-content button')[1]?.focus();
   }
 
@@ -96,7 +94,19 @@ export class ConfirmDialog {
     this.modal().close();
   }
 
-  // Esc, o X e os dois botões passam por aqui: o po-modal avisa que fechou.
+  protected keepFocusInside(event: FocusEvent): void {
+    const content = this.host.nativeElement.querySelector('.po-modal-content');
+    if (this.isOpen && content && !content.contains(event.target as Node)) {
+      content.querySelectorAll<HTMLElement>('button')[1]?.focus();
+    }
+  }
+
+  protected closeOnEscape(): void {
+    if (this.isOpen) {
+      this.answer('cancel');
+    }
+  }
+
   protected closed(): void {
     this.isOpen = false;
     if (this.choice === 'confirm') {

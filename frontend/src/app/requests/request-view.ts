@@ -9,7 +9,6 @@ import {
   nextStatusFor as sharedNextStatusFor,
 } from '@portal/shared';
 
-// O que as telas de solicitação têm em comum: cores, prazo e o que cada pessoa pode fazer.
 // As permissões vêm de shared/ e aqui só decidem quais botões aparecem; quem garante a regra é
 // a API.
 
@@ -21,24 +20,19 @@ export const STATUS_TAG_TYPE: Record<RequestStatus, PoTagType> = {
   DONE: PoTagType.Success,
 };
 
-// Nome da lista conforme quem vê: o colaborador só vê as próprias. O mesmo nome vai no menu,
-// no título da lista e na trilha de navegação.
+// O mesmo nome vai no menu, no título da lista e na trilha de navegação.
 export function listTitle(user: AuthUser | null): string {
   return user?.role === 'AGENT' ? 'Solicitações' : 'Minhas solicitações';
 }
 
-// Rótulo de quem está atrasado. "Fora do prazo" combina com qualquer status ("Aberto",
-// "Em Atendimento"), sem o gênero de "atrasada" ao lado de "Aberto".
+// "Fora do prazo" combina com qualquer status, sem o gênero de "atrasada".
 export const OVERDUE_LABEL = 'Fora do prazo';
 
-// Prazo de categoria em texto. O prazo conta só horas úteis (segunda a sexta, 08:00–18:00),
-// por isso não vira dias: "24 horas úteis" não são um dia corrido.
+// O prazo conta só horas úteis (segunda a sexta, 08:00–18:00), por isso não vira dias.
 export function formatHours(hours: number): string {
   return hours === 1 ? '1 hora útil' : `${hours} horas úteis`;
 }
 
-// Editar e excluir, e o próximo status: as mesmas regras que a API aplica (shared/), aqui só
-// para decidir quais botões aparecem.
 export function canModify(user: AuthUser | null, request: RequestSummary): boolean {
   return user !== null && modifyRefusal(user, accessOf(request)) === null;
 }
@@ -50,7 +44,6 @@ export function nextStatusFor(
   return user ? sharedNextStatusFor(user, accessOf(request)) : null;
 }
 
-// Nome do atendente responsável; antes de alguém iniciar o atendimento, não há.
 export function assigneeName(request: RequestSummary): string {
   return request.assignee?.name ?? 'Ninguém ainda';
 }
@@ -61,7 +54,6 @@ export const ADVANCE_LABEL: Record<RequestStatus, string> = {
   DONE: 'Concluir atendimento',
 };
 
-// Texto de uma linha do histórico: "Aberto → Em Atendimento" (ou "Solicitação aberta").
 export function transitionLabel(from: RequestStatus | null, to: RequestStatus): string {
   return from
     ? `${REQUEST_STATUS_LABELS[from]} → ${REQUEST_STATUS_LABELS[to]}`

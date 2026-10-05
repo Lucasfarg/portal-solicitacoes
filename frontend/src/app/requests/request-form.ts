@@ -30,7 +30,6 @@ import { canModify, formatHours, listTitle } from './request-view';
 
 const fields = createRequestSchema.shape;
 
-// Formulário de abrir e de editar solicitação: a rota com :id é edição.
 @Component({
   selector: 'app-request-form',
   imports: [
@@ -54,11 +53,9 @@ export class RequestForm {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly dialog = viewChild.required(ConfirmDialog);
 
-  // Id da solicitação em edição; nulo quando é uma nova.
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('id');
   protected readonly title = this.id ? 'Editar solicitação' : 'Nova solicitação';
 
-  // Cada campo é validado pelo schema Zod de shared/ — o mesmo que valida o corpo na API.
   readonly form = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: zodValidator(fields.title) }),
     categoryId: new FormControl<number | null>(null, zodValidator(fields.categoryId)),
@@ -68,7 +65,6 @@ export class RequestForm {
     }),
   });
 
-  // Limites do schema de shared/: o maxlength dos campos e o contador seguem a API.
   protected readonly titleMax = TITLE_MAX;
   protected readonly descriptionMax = DESCRIPTION_MAX;
   private readonly description = toSignal(this.form.controls.description.valueChanges, {
@@ -79,9 +75,8 @@ export class RequestForm {
   );
 
   private readonly activeCategories = signal<Category[]>([]);
-  // Na edição, a categoria atual pode ter sido desativada depois da abertura: a lista da API só
-  // traz as ativas, e sem ela o campo apareceria vazio. Ela entra marcada como desativada; a
-  // API aceita manter a categoria, só não aceita trocar para uma desativada.
+  // A categoria atual pode ter sido desativada depois: a lista da API só traz as ativas, e sem
+  // ela o campo apareceria vazio.
   private readonly currentCategory = signal<RequestDetail['category'] | null>(null);
   protected readonly categoryOptions = computed<PoSelectOption[]>(() => {
     const options = this.activeCategories().map(toOption);
@@ -92,11 +87,9 @@ export class RequestForm {
     return options;
   });
   protected readonly saving = signal(false);
-  // Na edição, enquanto a solicitação não chega o formulário fica travado: o que fosse
-  // digitado antes seria sobrescrito pelos dados carregados.
+  // Na edição o formulário fica travado até os dados chegarem, para não sobrescrever o digitado.
   protected readonly loading = signal(this.id !== null);
   private readonly code = signal<string | null>(null);
-  // Depois de salvar, a saída para o detalhe não pergunta nada.
   private saved = false;
 
   protected readonly breadcrumb = computed<PoBreadcrumb>(() => {
@@ -113,11 +106,9 @@ export class RequestForm {
     };
   });
 
-  // O primeiro é o botão principal; o PO UI o põe por último, à direita.
   protected readonly actions = computed<PoPageAction[]>(() => [
     {
       label: this.saving() ? 'Salvando…' : 'Salvar',
-      icon: 'an an-check',
       kind: 'primary',
       action: () => this.save(),
     },
@@ -140,7 +131,6 @@ export class RequestForm {
   }
 
   private startEditing(request: RequestDetail): void {
-    // Quem chega pela URL sem poder editar volta para o detalhe (a API também recusaria).
     if (!canModify(this.auth.user(), request)) {
       this.leave('Só quem abriu a solicitação pode editá-la, e só enquanto está em Aberto.', [
         '/solicitacoes',
@@ -161,20 +151,16 @@ export class RequestForm {
   }
 
   save(): void {
-    // Um segundo clique enquanto a API responde não envia de novo. O botão não é desabilitado:
-    // desabilitado ele perderia o foco.
+    // O botão não é desabilitado durante o envio: desabilitado ele perderia o foco.
     if (this.saving() || this.loading()) {
       return;
     }
     if (this.form.invalid) {
-      // Mostra as mensagens de todos os campos, inclusive os que a pessoa não tocou, e
-      // leva o foco ao primeiro campo com erro.
       this.form.markAllAsTouched();
       focusFirstInvalid(this.host.nativeElement);
       return;
     }
 
-    // O parse aplica as transformações do schema (tira espaços das pontas).
     const input = createRequestSchema.parse(this.form.getRawValue());
     const request = this.id
       ? this.api.updateRequest(Number(this.id), input)
@@ -189,8 +175,6 @@ export class RequestForm {
       },
       error: (error: unknown) => {
         this.saving.set(false);
-        // O que o formulário não tem como prever (ex.: categoria desativada enquanto a
-        // tela estava aberta) a API recusa, e o motivo aparece no aviso.
         this.notification.error(errorMessage(error));
       },
     });
@@ -200,8 +184,7 @@ export class RequestForm {
     void this.router.navigate(this.id ? ['/solicitacoes', this.id] : ['/solicitacoes']);
   }
 
-  // Chamado pela rota (canDeactivate) a cada saída da tela. Com alterações não salvas,
-  // pergunta antes de descartar. Sessão expirada sai sem perguntar: não há como salvar.
+  // Sessão expirada sai sem perguntar: não há como salvar.
   canLeave(): boolean | Promise<boolean> {
     if (this.saved || !this.form.dirty || !this.auth.user()) {
       return true;
@@ -220,7 +203,6 @@ export class RequestForm {
     );
   }
 
-  // Recarregar ou fechar a aba com alterações: o navegador mostra o aviso dele.
   protected warnBeforeUnload(event: BeforeUnloadEvent): void {
     if (!this.saved && this.form.dirty) {
       event.preventDefault();

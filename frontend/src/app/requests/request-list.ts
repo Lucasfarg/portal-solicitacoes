@@ -42,7 +42,6 @@ import {
   STATUS_TAG_TYPE,
 } from './request-view';
 
-// Uma linha da tabela (ou um cartão, no celular).
 interface Row {
   id: number;
   code: string;
@@ -53,7 +52,6 @@ interface Row {
   assignee: string;
   createdAt: string;
   dueAt: string;
-  // O que a coluna "Prazo" desenha: a data e a etiqueta "Fora do prazo".
   due: { at: string; overdue: boolean };
   status: RequestStatus;
   overdue: boolean;
@@ -70,7 +68,7 @@ function toRow(request: RequestSummary): Row {
     assignee: assigneeName(request),
     createdAt: request.createdAt,
     dueAt: request.dueAt,
-    // Calculado pela API, com o relógio dela (o mesmo do painel e do filtro).
+    // Calculado pela API, com o mesmo relógio do painel e do filtro.
     due: { at: request.dueAt, overdue: request.overdue },
     status: request.status,
     overdue: request.overdue,
@@ -79,8 +77,8 @@ function toRow(request: RequestSummary): Row {
 
 const EMPTY_PAGE: RequestPage = { items: [], page: 1, pageSize: 10, total: 0 };
 
-// Valor da opção "Todas" nos filtros de situação e categoria. O po-select trata o valor
-// vazio como "nada escolhido" e deixaria o campo em branco, na tela e para o leitor de tela.
+// Valor da opção "Todas": o po-select trata o valor vazio como "nada escolhido" e deixaria o
+// campo em branco.
 const ALL = 'ALL';
 
 @Component({
@@ -113,34 +111,27 @@ export class RequestList {
 
   protected readonly dateTimeFormat = DATE_TIME_FORMAT;
   protected readonly submitType = PoButtonType.Submit;
-  // A data do filtro vai para a API como AAAA-MM-DD, o formato que ela espera.
   protected readonly isoBasic = PoDatepickerIsoFormat.Basic;
   protected readonly tableLiterals = { noData: 'Nenhuma solicitação encontrada.' };
   protected readonly pageActions: PoPageAction[] = [
     {
       label: 'Nova solicitação',
-      icon: 'an an-plus',
       kind: 'primary',
       action: () => this.newRequest(),
     },
   ];
   protected readonly statusLabels = REQUEST_STATUS_LABELS;
   protected readonly statusTagType = STATUS_TAG_TYPE;
-  // Só quem está fora do prazo ganha etiqueta: "no prazo" é o normal e não precisa de cor.
   protected readonly overdueLabel = OVERDUE_LABEL;
   protected readonly danger = PoTagType.Danger;
 
-  // Solicitante e responsável só interessam ao atendente: o colaborador só vê as próprias.
   protected readonly isAgent = computed(() => this.auth.user()?.role === 'AGENT');
   protected readonly title = computed(() => listTitle(this.auth.user()));
-
-  // ---------- Filtros ----------
 
   protected readonly filters = new FormGroup({
     q: new FormControl('', { nonNullable: true }),
     status: new FormControl<RequestStatus | typeof ALL>(ALL, { nonNullable: true }),
     categoryId: new FormControl<number | typeof ALL>(ALL, { nonNullable: true }),
-    // po-datepicker com p-iso-format "basic": o valor é AAAA-MM-DD.
     from: new FormControl('', { nonNullable: true }),
     to: new FormControl('', { nonNullable: true }),
     overdue: new FormControl(false, { nonNullable: true }),
@@ -153,19 +144,16 @@ export class RequestList {
 
   protected readonly categoryOptions = signal<PoSelectOption[]>([{ label: 'Todas', value: ALL }]);
 
-  // ---------- Resultado ----------
-
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   private readonly reloads = new Subject<void>();
   protected readonly page = signal<RequestPage>(EMPTY_PAGE);
   protected readonly rows = computed(() => this.page().items.map(toRow));
 
-  // Sem ordenar pelo cabeçalho: a lista vem da API, das mais recentes para as mais antigas, e
-  // reordenar só a página atual enganaria quem a lê.
+  // Sem ordenar pelo cabeçalho: reordenar só a página atual enganaria quem lê.
   protected readonly columns = computed<PoTableColumn[]>(() => [
     { property: 'code', label: 'Código', type: 'link', link: 'url', sortable: false },
-    { property: 'title', label: 'Título', sortable: false },
+    { property: 'title', label: 'Título', width: '30%', sortable: false },
     { property: 'category', label: 'Categoria', sortable: false },
     ...(this.isAgent()
       ? [
@@ -176,8 +164,8 @@ export class RequestList {
     {
       property: 'createdAt',
       label: 'Abertura',
-      type: 'dateTime',
-      format: DATE_TIME_FORMAT,
+      type: 'date',
+      format: 'dd/MM/yyyy',
       sortable: false,
     },
     { property: 'due', label: 'Prazo', type: 'columnTemplate', sortable: false },
@@ -197,7 +185,6 @@ export class RequestList {
     Math.max(1, Math.ceil(this.page().total / this.page().pageSize)),
   );
 
-  // Em telas estreitas a tabela dá lugar a um cartão por solicitação.
   protected readonly isMobile = toSignal(
     inject(BreakpointObserver)
       .observe('(max-width: 768px)')
@@ -215,10 +202,8 @@ export class RequestList {
         ]),
       );
 
-    // A URL é a fonte da verdade dos filtros e da página: cada mudança na query string
-    // refaz a busca (dá para recarregar, voltar e compartilhar o link). O "Tentar de novo" e o
-    // "Filtrar" com os mesmos filtros não mudam a query string; esses casos passam pelo
-    // `reloads`. O switchMap descarta a resposta de uma busca antiga se outra começou depois.
+    // A URL é a fonte da verdade dos filtros e da página. `reloads` cobre os casos em que a
+    // query string não muda; o switchMap descarta a resposta de uma busca antiga.
     merge(this.route.queryParams, this.reloads.pipe(map(() => this.route.snapshot.queryParams)))
       .pipe(
         map((params) => this.readQuery(params)),
@@ -249,9 +234,7 @@ export class RequestList {
     this.reloads.next();
   }
 
-  // A query string é validada com o mesmo schema que a API usa para os filtros. Um valor
-  // inválido (link editado à mão, data final antes da inicial) é avisado e descartado; o resto
-  // continua valendo, e a paginação não trava.
+  // Valor inválido na query string (link editado à mão) é avisado e descartado; o resto vale.
   private readQuery(params: Params): ListRequestsQuery {
     const parsed = listRequestsQuerySchema.safeParse(params);
     if (parsed.success) {
@@ -276,15 +259,13 @@ export class RequestList {
 
   protected applyFilters(): void {
     const { q, status, categoryId, from, to, overdue } = this.filters.getRawValue();
-    // A mesma regra do schema, conferida antes de mudar a URL: a busca não sai, e o que foi
-    // digitado continua nos campos para a pessoa corrigir.
+    // Confere antes de mudar a URL: o digitado continua nos campos para a pessoa corrigir.
     if (from && to && from > to) {
       this.notification.warning('A data "Aberta até" não pode ser anterior à "Aberta de".');
       document.querySelector<HTMLElement>('po-datepicker[name="to"] input')?.focus();
       return;
     }
-    // Filtro sem valor vira null, que o roteador tira da URL. Sem `page`: filtrar volta à
-    // página 1.
+    // Filtro sem valor vira null, que o roteador tira da URL. Sem `page`, volta à página 1.
     this.navigate({
       q: q.trim() || null,
       status: status === ALL ? null : status,
@@ -295,9 +276,8 @@ export class RequestList {
     });
   }
 
-  // Enter num campo de data envia o filtro, como nos outros campos. O po-datepicker cancela a
-  // tecla e, com o calendário aberto (é o que o Tab faz ao chegar no campo), ainda não passou
-  // ao formulário a data digitada: ela é lida do campo aqui.
+  // O po-datepicker cancela o Enter e, com o calendário aberto, ainda não passou a data
+  // digitada ao formulário: ela é lida do campo.
   protected submitDate(control: 'from' | 'to', event: Event): void {
     if (!(event.target instanceof HTMLInputElement)) {
       return;
@@ -313,13 +293,10 @@ export class RequestList {
     this.navigate({});
   }
 
-  // Esc no campo "Título" apaga o que foi digitado, sem buscar: a busca continua sendo
-  // pelo "Filtrar" (ou Enter).
   protected clearSearch(): void {
     this.filters.controls.q.setValue('');
   }
 
-  // Trocar de página mantém os filtros da URL.
   protected goToPage(page: number): void {
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -332,8 +309,7 @@ export class RequestList {
     void this.router.navigate(['/solicitacoes/nova']);
   }
 
-  // "Filtrar" e "Limpar filtros" refazem a busca mesmo quando a URL fica igual (os mesmos
-  // filtros): o que foi digitado e não aplicado é trocado pelo que está na URL.
+  // Refaz a busca mesmo com a URL igual, descartando o digitado e não aplicado.
   private navigate(queryParams: Params): void {
     const before = this.router.url;
     void this.router.navigate([], { relativeTo: this.route, queryParams }).then(() => {

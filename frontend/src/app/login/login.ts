@@ -1,28 +1,30 @@
-import { Component, ElementRef, inject, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Component, ElementRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { PoButtonModule, PoButtonType, PoFieldModule } from '@po-ui/ng-components';
-import { loginSchema } from '@portal/shared';
+import { PoPageLogin, PoPageLoginLiterals, PoPageLoginModule } from '@po-ui/ng-templates';
 import { errorMessage } from '../core/api-error';
 import { AuthService } from '../core/auth.service';
-import { FieldA11y, focusFirstInvalid } from '../core/field-a11y';
-import { FieldError } from '../core/field-error';
-import { FieldAutocomplete, PasswordPeekA11y } from '../core/po-a11y';
-import { zodValidator } from '../core/zod-validator';
 
+// Tela de login sobre o po-page-login, o template de login do PO UI: o layout, os campos e a
+// validação de preenchimento são dele; aqui ficam os textos e a chamada à API.
 @Component({
   selector: 'app-login',
-  imports: [
-    ReactiveFormsModule,
-    PoButtonModule,
-    PoFieldModule,
-    FieldError,
-    FieldA11y,
-    FieldAutocomplete,
-    PasswordPeekA11y,
-  ],
+  imports: [PoPageLoginModule],
   templateUrl: './login.html',
-  styleUrl: './login.scss',
+  styles: `
+    main {
+      display: block;
+    }
+
+    // Só para o leitor de tela: a mensagem visível é a do campo.
+    .login-failure {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  `,
 })
 export class Login {
   private readonly auth = inject(AuthService);
@@ -30,37 +32,36 @@ export class Login {
   private readonly route = inject(ActivatedRoute);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  protected readonly form = new FormGroup({
-    username: new FormControl('', {
-      nonNullable: true,
-      validators: zodValidator(loginSchema.shape.username),
-    }),
-    password: new FormControl('', {
-      nonNullable: true,
-      validators: zodValidator(loginSchema.shape.password),
-    }),
+  protected readonly literals: PoPageLoginLiterals = {
+    // Ambiente de demonstração: quem avalia entra sem precisar abrir o README.
+    welcome: 'Use ana, bruno ou carla com a senha Senha@123',
+    loginLabel: 'Usuário',
+    loginPlaceholder: 'Seu usuário',
+    loginHint: 'ana e bruno são colaboradores; carla é atendente.',
+    passwordLabel: 'Senha',
+    passwordPlaceholder: 'Sua senha',
+    submitLabel: 'Entrar',
+    submittedLabel: 'Entrando…',
+    highlightInfo: 'Solicitações para TI, RH, Compras, Financeiro e Infraestrutura',
+  };
+
+  protected readonly loading = signal(false);
+  // Resposta da API quando o login falha (senha errada, muitas tentativas). Some quando a
+  // pessoa volta a digitar: com um erro no campo, o po-page-login mantém o botão desabilitado.
+  protected readonly failure = signal<string | null>(null);
+  protected readonly errors = computed(() => {
+    const message = this.failure();
+    return message ? [message] : [];
   });
 
-  protected readonly submitType = PoButtonType.Submit;
-  protected readonly loading = signal(false);
-  // Resposta da API quando o login falha (senha errada, muitas tentativas).
-  protected readonly failure = signal<string | null>(null);
-
-  protected submit(): void {
+  protected submit(form: PoPageLogin): void {
     // Um segundo Enter enquanto a API responde não envia de novo.
     if (this.loading()) {
       return;
     }
-    if (this.form.invalid) {
-      // Mostra as mensagens e leva o foco ao primeiro campo com erro.
-      this.form.markAllAsTouched();
-      focusFirstInvalid(this.host.nativeElement);
-      return;
-    }
-
     this.loading.set(true);
     this.failure.set(null);
-    this.auth.login(this.form.getRawValue()).subscribe({
+    this.auth.login({ username: form.login, password: form.password }).subscribe({
       next: () => {
         // Volta para a página que a pessoa tentou abrir antes de cair no login.
         const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/';
@@ -69,6 +70,8 @@ export class Login {
       error: (error: unknown) => {
         this.loading.set(false);
         this.failure.set(errorMessage(error));
+        // Com o erro o botão fica desabilitado e perderia o foco: ele vai para a senha.
+        this.host.nativeElement.querySelector<HTMLElement>('po-password input')?.focus();
       },
     });
   }
