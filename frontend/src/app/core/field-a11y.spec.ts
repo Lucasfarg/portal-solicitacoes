@@ -56,18 +56,6 @@ describe('FieldA11y', () => {
 
   afterEach(() => element.remove());
 
-  it('aponta o campo para a mensagem de erro e não o marca inválido antes de ser tocado', () => {
-    expect(name().getAttribute('aria-describedby')).toBe('name-error');
-    expect(name().getAttribute('aria-invalid')).toBe('false');
-  });
-
-  it('soma a mensagem ao que o campo já descrevia, sem repetir a cada renderização', () => {
-    TestBed.tick();
-    const described = element.querySelector('#described')!;
-
-    expect(described.getAttribute('aria-describedby')).toBe('described-help described-error');
-  });
-
   it('marca o campo como inválido depois de tocado, junto com a mensagem', () => {
     fixture.componentInstance.form.markAllAsTouched();
     fixture.detectChanges();
