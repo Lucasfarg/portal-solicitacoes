@@ -1,20 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AuthUser, DashboardSummary } from '@portal/shared';
+import type { AuthUser, DashboardSummary, RequestStatus } from '@portal/shared';
 import type { Env } from '../config/env.js';
-import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { businessHoursBetween, visibleTo } from '../requests/request-rules.js';
+import { businessHoursBetween, overdueWhere, visibleTo } from '../requests/request-rules.js';
 
-interface Counts {
-  total: number;
-  open: number;
-  inProgress: number;
-  done: number;
-  overdue: number;
-}
-
-// Horas com uma casa decimal; nulo (nenhum registro) continua nulo.
 function averageHours(hours: number[]): number | null {
   if (hours.length === 0) {
     return null;
@@ -25,7 +15,6 @@ function averageHours(hours: number[]): number | null {
 
 @Injectable()
 export class DashboardService {
-  // Fuso do expediente: os tempos médios contam horas úteis, como o prazo.
   private readonly timeZone: string;
 
   constructor(
@@ -36,32 +25,34 @@ export class DashboardService {
   }
 
   async summary(user: AuthUser): Promise<DashboardSummary> {
-    // Mesmo escopo da listagem (visibleTo): atendente enxerga todas; colaborador, só as que
-    // abriu. As excluídas não entram em nenhum número.
-    const { requesterId } = visibleTo(user);
-    const scope =
-      requesterId === undefined
-        ? Prisma.sql`r.deleted_at IS NULL`
-        : Prisma.sql`r.deleted_at IS NULL AND r.requester_id = ${requesterId}`;
-
-    // Uma passada pela tabela conta tudo; fora do prazo = ainda não concluída e com o prazo
-    // vencido. O instante vem da API, não do now() do banco: a mesma régua da lista
-    // (request-rules.ts, isOverdue).
+    // Mesmo escopo da listagem; as excluídas não entram.
+    const where = { ...visibleTo(user), deletedAt: null };
     const now = new Date();
-    const [counts] = await this.prisma.$queryRaw<Counts[]>`
-      SELECT
-        COUNT(*)::int                                                        AS "total",
-        COUNT(*) FILTER (WHERE r.status = 'OPEN')::int                       AS "open",
-        COUNT(*) FILTER (WHERE r.status = 'IN_PROGRESS')::int                AS "inProgress",
-        COUNT(*) FILTER (WHERE r.status = 'DONE')::int                       AS "done",
-        COUNT(*) FILTER (WHERE r.status <> 'DONE' AND r.due_at < ${now})::int AS "overdue"
-      FROM requests r
-      WHERE ${scope}`;
 
-    // Os tempos saem do histórico: cada solicitação tem no máximo um registro de início
-    // (IN_PROGRESS) e um de conclusão (DONE). Contam só horas úteis, a régua do prazo: aberta
-    // na sexta às 17h e iniciada na segunda às 9h esperou 2 h, não 64 h. O cálculo do
-    // expediente (dia da semana e fuso) fica no TypeScript, onde o prazo já é calculado.
+    const [byStatus, overdue, categories] = await Promise.all([
+      this.prisma.request.groupBy({ by: ['status'], where, _count: true }),
+      this.prisma.request.count({ where: { ...where, AND: overdueWhere(now) } }),
+      this.prisma.category.findMany({
+        select: { name: true, _count: { select: { requests: { where } } } },
+      }),
+    ]);
+
+    const countOf = (status: RequestStatus) =>
+      byStatus.find((group) => group.status === status)?._count ?? 0;
+    const counts = {
+      total: byStatus.reduce((sum, group) => sum + group._count, 0),
+      open: countOf('OPEN'),
+      inProgress: countOf('IN_PROGRESS'),
+      done: countOf('DONE'),
+      overdue,
+    };
+    const byCategory = categories
+      .map((category) => ({ name: category.name, total: category._count.requests }))
+      .filter((category) => category.total > 0)
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+
+    // Só horas úteis, como o prazo: aberta na sexta 17h e iniciada na segunda 9h esperou 2 h, não 64 h.
+    // O cálculo do expediente fica no TypeScript, onde o prazo já é calculado.
     const entries = await this.prisma.requestStatusHistory.findMany({
       where: {
         toStatus: { in: ['IN_PROGRESS', 'DONE'] },
@@ -81,7 +72,7 @@ export class DashboardService {
 
     return {
       ...counts,
-      // Concluída com atraso = registro de conclusão depois do prazo.
+      byCategory,
       completedLate: finished.filter((entry) => entry.changedAt > entry.request.dueAt).length,
       averageTimeToStartHours: averageHours(started.map(sinceOpening)),
       averageResolutionHours: averageHours(finished.map(sinceOpening)),
