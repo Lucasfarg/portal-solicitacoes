@@ -198,6 +198,48 @@ describe('Solicitações (e2e)', () => {
     });
   });
 
+  describe('exportar', () => {
+    const exportAs = (cookie: string, format: string, query: object = {}) =>
+      http().get(`/api/requests/export/${format}`).query(query).set('Cookie', cookie);
+
+    it('CSV traz as solicitações filtradas, só as que a pessoa pode ver', async () => {
+      await openId(ana, { title: 'Impressora sem toner' });
+      await openId(ana, { title: 'Comprar cadeiras', categoryId: compras.id });
+      await openId(bruno, { title: 'Do Bruno' });
+
+      const response = await exportAs(ana, 'csv', { categoryId: compras.id }).expect(200);
+
+      expect(response.headers['content-type']).toContain('text/csv');
+      expect(response.headers['content-disposition']).toContain('solicitacoes.csv');
+      const lines = response.text.trim().split('\n');
+      expect(lines[0]).toContain('Código;Título;Categoria');
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('Comprar cadeiras;Compras;ana');
+    });
+
+    it('Word devolve um arquivo .docx', async () => {
+      await openId(ana);
+
+      const response = await exportAs(ana, 'docx')
+        .buffer(true)
+        .parse((res, done) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => done(null, Buffer.concat(chunks)));
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('wordprocessingml');
+      // Todo .docx é um zip: começa com "PK".
+      expect((response.body as Buffer).subarray(0, 2).toString()).toBe('PK');
+    });
+
+    it('recusa formato desconhecido (400) e exige sessão (401)', async () => {
+      await exportAs(ana, 'pdf').expect(400);
+      await http().get('/api/requests/export/csv').expect(401);
+    });
+  });
+
   describe('ver, editar e excluir', () => {
     it('outro colaborador recebe 404, como se a solicitação não existisse', async () => {
       const id = await openId(ana);

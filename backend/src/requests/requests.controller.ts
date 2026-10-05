@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -27,8 +39,13 @@ import {
   type UpdateRequestInput,
   updateRequestSchema,
 } from '@portal/shared';
+import type { Response } from 'express';
+import { z } from 'zod';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { EXPORT_CONTENT_TYPE, EXPORT_FORMATS, type ExportFormat } from './request-export.js';
 import { RequestsService } from './requests.service.js';
+
+const exportFormatSchema = z.enum(EXPORT_FORMATS, 'Use csv ou docx');
 
 @ApiTags('requests')
 @Controller('requests')
@@ -59,6 +76,23 @@ export class RequestsController {
     @Query({ schema: listRequestsQuerySchema }) query: ListRequestsQuery,
   ): Promise<RequestPage> {
     return this.requests.list(user, query);
+  }
+
+  @Get('export/:format')
+  @ApiOperation({ summary: 'Exporta as solicitações filtradas em CSV ou Word (docx)' })
+  @ApiOkResponse({ description: 'Arquivo para download' })
+  async export(
+    @CurrentUser() user: AuthUser,
+    @Param('format', { schema: exportFormatSchema }) format: ExportFormat,
+    @Query({ schema: listRequestsQuerySchema }) query: ListRequestsQuery,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.requests.export(user, query, format);
+    response.set({
+      'Content-Type': EXPORT_CONTENT_TYPE[format],
+      'Content-Disposition': `attachment; filename="solicitacoes.${format}"`,
+    });
+    return new StreamableFile(file);
   }
 
   @Get(':id')
