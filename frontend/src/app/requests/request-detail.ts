@@ -189,7 +189,7 @@ export class RequestDetailPage {
     this.api.changeStatus(this.id, next).subscribe({
       next: (request) => {
         this.request.set(request);
-        this.notification.success(`Situação alterada para "${REQUEST_STATUS_LABELS[next]}".`);
+        this.notification.success(`Status alterado para "${REQUEST_STATUS_LABELS[next]}".`);
         // O botão que tinha o foco muda de nome ou some.
         this.page().focusTitle();
       },
@@ -222,7 +222,7 @@ export class RequestDetailPage {
     });
   }
 
-  // 409 (situação mudou) ou 403: mostra o motivo e recarrega para os botões refletirem o estado.
+  // 409 (status mudou) ou 403: mostra o motivo e recarrega para os botões refletirem o estado.
   private showConflict(error: unknown): void {
     this.notification.error(errorMessage(error));
     this.load();
