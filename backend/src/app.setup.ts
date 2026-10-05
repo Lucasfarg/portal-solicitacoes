@@ -1,7 +1,8 @@
+import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { ProblemDetailsFilter } from './common/problem-details.filter.js';
@@ -15,6 +16,21 @@ export function configureApp(app: NestExpressApplication) {
 
   // X-Forwarded-For só vale vindo de TRUST_PROXY: senão daria para forjar IP e escapar do limite de login.
   app.set('trust proxy', config.get('TRUST_PROXY', { infer: true }));
+  // Hospedagem numa imagem só: a API entrega os arquivos do frontend, e toda rota fora de
+  // /api cai no index.html (as rotas são do Angular). Fica antes do Helmet, cuja política de
+  // conteúdo é pensada para a API e bloquearia o carregamento dos estilos da tela.
+  const webRoot = config.get('WEB_ROOT', { infer: true });
+  if (webRoot) {
+    app.disable('x-powered-by');
+    app.useStaticAssets(webRoot);
+    app.use((request: Request, response: Response, next: NextFunction) => {
+      if (request.method === 'GET' && !request.path.startsWith('/api')) {
+        response.sendFile(join(webRoot, 'index.html'));
+      } else {
+        next();
+      }
+    });
+  }
   app.use(
     helmet({
       contentSecurityPolicy: {

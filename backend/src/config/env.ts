@@ -22,6 +22,9 @@ export const envSchema = z.object({
     )
     .default(DEFAULT_TIMEZONE),
   TRUST_PROXY: z.string().trim().min(1).default('loopback'),
+  // Pasta com o build do frontend. Preenchida só na imagem de hospedagem, em que a API
+  // também entrega as telas; no compose quem faz isso é o nginx.
+  WEB_ROOT: z.string().trim().min(1).optional(),
   // Ligar com HTTPS: cookie Secure com prefixo __Host- e navegador forçando HTTPS.
   HTTPS_ONLY: z
     .enum(['true', 'false'])

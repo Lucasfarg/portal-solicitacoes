@@ -46,3 +46,15 @@ USER node
 EXPOSE 3000
 # Aplica as migrações pendentes e o seed (idempotente) e só então sobe a API.
 CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/seed.js && exec node dist/main"]
+
+# Imagem única para hospedagem (render.yaml): a API também entrega o frontend (WEB_ROOT).
+# O compose não usa estas etapas: ele para em `runtime` e serve as telas pelo nginx.
+FROM manifests AS web-build
+RUN pnpm install --frozen-lockfile --filter frontend...
+COPY shared shared
+COPY frontend frontend
+RUN pnpm --filter @portal/shared build && pnpm --filter frontend build
+
+FROM runtime AS hosted
+COPY --from=web-build --chown=node:node /app/frontend/dist/frontend/browser /app/web
+ENV WEB_ROOT=/app/web
