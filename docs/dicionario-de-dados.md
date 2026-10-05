@@ -12,6 +12,64 @@ Os scripts de criação são as migrações em [`backend/prisma/migrations/`](..
 
 É SQL puro: roda com `psql -f`, um arquivo depois do outro, num banco vazio, ou com `pnpm --filter backend db:deploy`, que é o que o container da API faz ao subir.
 
+## Diagrama
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : "abre"
+    users ||--o{ requests : "solicita"
+    users |o--o{ requests : "atende"
+    categories ||--o{ requests : "classifica"
+    requests ||--|{ request_status_history : "registra"
+    users ||--o{ request_status_history : "altera"
+
+    users {
+        int id PK
+        citext username UK
+        user_role role
+        boolean active
+    }
+    sessions {
+        int id PK
+        char token_hash UK
+        int user_id FK
+        timestamptz last_seen_at
+        timestamptz expires_at
+    }
+    categories {
+        smallint id PK
+        citext name UK
+        smallint sla_hours
+        boolean active
+    }
+    requests {
+        int id PK
+        varchar title
+        smallint category_id FK
+        int requester_id FK
+        int assignee_id FK
+        request_status status
+        timestamptz due_at
+        timestamptz deleted_at
+    }
+    request_status_history {
+        int id PK
+        int request_id FK
+        request_status from_status
+        request_status to_status
+        int changed_by FK
+        timestamptz changed_at
+    }
+    login_failures {
+        int id PK
+        varchar ip
+        citext username
+        timestamptz failed_at
+    }
+```
+
+O diagrama mostra as chaves e as colunas que explicam as relações; as demais colunas estão nas seções de cada tabela.
+
 ## Convenções
 
 - Tabelas e colunas em inglês, `snake_case`, tabelas no plural.

@@ -3,7 +3,7 @@
 Sistema web em que colaboradores registram demandas internas (TI, RH, Compras, Financeiro, Infraestrutura) e acompanham cada uma até a conclusão. Atendentes veem todas as solicitações e avançam o status: Aberto → Em Atendimento → Concluído.
 
 - **Backend:** API REST em NestJS 12 (TypeScript), Prisma 7 e PostgreSQL 18
-- **Frontend:** SPA em Angular 21 com PO UI 21
+- **Frontend:** SPA em Angular 21 com PO UI 21 (componentes e template de login)
 - **Infra:** Docker Compose (banco, API e web atrás de um nginx) e GitHub Actions
 
 Documentação complementar:
@@ -129,7 +129,7 @@ Todas as rotas ficam sob `/api` e exigem sessão, menos o login, a saída (logou
 | `PATCH /api/requests/:id` | Edita título, descrição ou categoria (só quem abriu, só em Aberto) |
 | `DELETE /api/requests/:id` | Exclusão lógica (só quem abriu, só em Aberto): some das telas e do painel, mas fica no banco com o histórico |
 | `PATCH /api/requests/:id/status` | Avança o status (só atendente, nunca numa solicitação que ele abriu). Quem inicia o atendimento vira o responsável, e só ele conclui |
-| `GET /api/dashboard/summary` | Números do painel, no escopo de quem consulta |
+| `GET /api/dashboard/summary` | Números do painel e total por categoria, no escopo de quem consulta |
 | `GET /api/health` | Responde 200 se a API alcança o banco |
 
 Chamadas que alteram dados (`POST`, `PATCH`, `DELETE`) precisam do cabeçalho `X-Requested-With: XMLHttpRequest`, que é a defesa contra CSRF. O portal e o Swagger já o enviam; com `curl`:
@@ -157,7 +157,7 @@ O workflow `.github/workflows/ci.yml` executa os cinco, nessa ordem, a cada pull
 
 ## Evidências
 
-Telas capturadas com o projeto rodando pelo Docker Compose e os dados de exemplo. As 15 imagens estão em [`docs/evidencias/`](docs/evidencias).
+Telas capturadas com o projeto rodando pelo Docker Compose e os dados de exemplo. As 18 imagens estão em [`docs/evidencias/`](docs/evidencias).
 
 | Tela | Imagem |
 |---|---|
@@ -168,6 +168,8 @@ Telas capturadas com o projeto rodando pelo Docker Compose e os dados de exemplo
 | Detalhe com o histórico de status | ![Detalhe com histórico](docs/evidencias/06-detalhe-concluida-historico.png) |
 | Confirmação da mudança de status | ![Confirmação de status](docs/evidencias/08-confirmacao-de-status.png) |
 | Lista no celular | ![Lista no celular](docs/evidencias/09-lista-celular.png) |
+| Painel no celular | ![Painel no celular](docs/evidencias/10-painel-celular.png) |
+| Login no celular | ![Login no celular](docs/evidencias/16-login-celular.png) |
 
 ## Estrutura do projeto
 
