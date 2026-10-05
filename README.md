@@ -123,7 +123,7 @@ Todas as rotas ficam sob `/api` e exigem sessão, menos o login e a verificaçã
 | `POST /api/auth/logout` | Encerra a sessão no servidor e limpa o cookie; responde 204 mesmo com a sessão já vencida |
 | `GET /api/auth/me` | Usuário da sessão atual |
 | `GET /api/categories` | Categorias ativas |
-| `GET /api/requests` | Lista com filtros (`status`, `categoryId`, `from`, `to`, `q`, `overdue`) e paginação (`page`, `pageSize`, `asOf`: só entram as abertas até esse instante; sem ele, vale o instante da API, devolvido em `asOf` na resposta). As linhas não trazem a descrição, que fica no detalhe |
+| `GET /api/requests` | Lista com filtros (`status`, `categoryId`, `from`, `to`, `q`, `overdue`) e paginação (`page`, `pageSize`). As linhas não trazem a descrição, que fica no detalhe |
 | `POST /api/requests` | Abre uma solicitação |
 | `GET /api/requests/:id` | Detalhe com o responsável e o histórico de status; 404 para solicitação de outro colaborador ou excluída |
 | `PATCH /api/requests/:id` | Edita título, descrição ou categoria (só quem abriu, só em Aberto) |
@@ -149,8 +149,8 @@ Na raiz do repositório, depois de `pnpm install`:
 | --- | --- |
 | `pnpm lint` | Biome no backend e em `shared/`; ESLint e Prettier no frontend |
 | `pnpm typecheck` | Verificação de tipos dos três pacotes |
-| `pnpm test` | Testes unitários: 72 no backend, 33 no frontend |
-| `pnpm test:e2e` | 81 testes da API contra um PostgreSQL 18 descartável (Testcontainers; precisa do Docker em execução) |
+| `pnpm test` | Testes unitários: 19 no backend (transições de status, prazo em horas úteis, senha) e 18 no frontend |
+| `pnpm test:e2e` | 39 testes da API, um por regra, contra um PostgreSQL 18 descartável (Testcontainers; precisa do Docker em execução) |
 | `pnpm build` | Build de produção dos três pacotes |
 
 O workflow `.github/workflows/ci.yml` executa os cinco, nessa ordem, a cada pull request e a cada push na `main`.

@@ -22,6 +22,8 @@ Procurei a solução mais simples que atendesse ao enunciado inteiro. O que vai 
 | Validação e contrato | Zod, em `shared/` | 4.6 |
 | Autenticação | Sessão no servidor, cookie HttpOnly, senhas com Argon2id | `argon2` 0.45 |
 | Proteções HTTP | Helmet | 8.3 |
+| Datas e fuso horário | Luxon | 3.7 |
+| Log de acesso | morgan | 1.12 |
 | Documentação da API | Swagger (`@nestjs/swagger`) | 12.0 |
 | Frontend | Angular | 21.2 |
 | Componentes de interface | PO UI | 21.31 |
@@ -63,7 +65,7 @@ O enunciado pede controle de sessão e logout. Com um token opaco guardado em co
 
 ### Helmet, limite de tentativas e Swagger
 
-O Helmet acrescenta os cabeçalhos de segurança HTTP com uma linha. O limite de tentativas de login é uma classe pequena (`auth/login-throttle.ts`) em vez do `@nestjs/throttler`: o throttler conta toda requisição, inclusive os logins certos, e num escritório em que todos saem pelo mesmo IP a sexta pessoa a entrar no mesmo minuto seria bloqueada. Aqui só os erros contam, e eles ficam numa tabela do banco (`login_failures`), então a contagem vale para todas as instâncias da API e continua depois de um reinício. O Swagger em `/api/docs` deixa o avaliador exercitar a API pelo navegador sem ler o código, e como é gerado dos schemas Zod não fica desatualizado em relação à validação; num ambiente exposto ele é desligado com `SWAGGER_ENABLED=false`, porque entrega o mapa inteiro da API.
+O Helmet acrescenta os cabeçalhos de segurança HTTP com uma linha, e o morgan registra uma linha por requisição (método, caminho, status e duração). As contas de data do prazo em horas úteis e do período do filtro usam o Luxon, que conhece os fusos horários e as mudanças de horário: o código só percorre os dias e soma as horas de expediente. O limite de tentativas de login é uma classe pequena (`auth/login-throttle.ts`) em vez do `@nestjs/throttler`: o throttler conta toda requisição, inclusive os logins certos, e num escritório em que todos saem pelo mesmo IP a sexta pessoa a entrar no mesmo minuto seria bloqueada. Aqui só os erros contam, e eles ficam numa tabela do banco (`login_failures`), então a contagem vale para todas as instâncias da API e continua depois de um reinício. O Swagger em `/api/docs` deixa o avaliador exercitar a API pelo navegador sem ler o código, e como é gerado dos schemas Zod não fica desatualizado em relação à validação; num ambiente exposto ele é desligado com `SWAGGER_ENABLED=false`, porque entrega o mapa inteiro da API.
 
 ### Angular
 
@@ -156,7 +158,7 @@ O detalhe de cada tabela está no [dicionário de dados](dicionario-de-dados.md)
 - **`status` repetido na solicitação**: é o `to_status` do último registro do histórico, gravado na mesma transação. Assim a lista e o painel leem o status sem juntar o histórico.
 - **Índices pelas consultas reais**: um composto `(requester_id, created_at DESC)` para a lista do colaborador e `(status, due_at)` para "fora do prazo"; não há índice só em `status`, que com três valores quase não filtra.
 - **Gravação condicional**: editar, excluir e mudar status conferem a regra no próprio `WHERE` (`status = 'OPEN'`, ou o status lido, e o responsável na conclusão). Se outra pessoa mudou a solicitação no meio, nada é gravado e a resposta é 409.
-- **Um relógio só**: abertura, prazo, histórico, sessões, "fora do prazo" e o instante que fixa a lista (`asOf`) usam o relógio da API, e a API devolve `overdue` pronto. Assim o painel, o filtro e a etiqueta da tela nunca discordam por diferença de relógio, e um computador com a hora errada não esconde da lista o que acabou de ser aberto.
+- **Um relógio só**: abertura, prazo, histórico, sessões, e "fora do prazo" usam o relógio da API, e a API devolve `overdue` pronto. Assim o painel, o filtro e a etiqueta da tela nunca discordam por diferença de relógio.
 
 ### Padrões de projeto utilizados
 
@@ -168,7 +170,7 @@ O detalhe de cada tabela está no [dicionário de dados](dicionario-de-dados.md)
 - **Mapper** entre a linha do banco e a resposta da API, para o formato do banco não vazar para o cliente.
 - **Atualização condicional** na mudança de status: o `UPDATE` inclui o status lido (`WHERE id = ? AND status = ?`). Se outro atendente mudou primeiro, nenhuma linha é alterada, a resposta é 409 e o histórico não duplica.
 - **Interceptor HTTP e guards de rota** no frontend, pelo mesmo motivo dos guards da API.
-- **URL como fonte da verdade** dos filtros da lista: filtros, página e o instante da busca (`asOf`, devolvido pela API na primeira página) ficam na query string, então recarregar, voltar e compartilhar o endereço funcionam e mostram as mesmas linhas.
+- **URL como fonte da verdade** dos filtros da lista: filtros e página ficam na query string, então recarregar, voltar e compartilhar o endereço funcionam.
 
 ### Estratégia de autenticação
 
@@ -199,7 +201,7 @@ frontend/src/app/
 
 O código (nomes, tabelas, rotas da API) está em inglês; mensagens ao usuário, rotas das telas e comentários, em português. Os comentários explicam o motivo de uma decisão, não o que a linha faz.
 
-Testes: 72 unitários no backend (permissões, as combinações de transição de status, responsável, prazo e tempos em horas úteis, período no fuso, sessão, senha, limite de login, CSRF), 81 e2e da API contra PostgreSQL real (inclusive as regras do banco e tentativas de login simultâneas) e 33 no frontend (guards de rota, interceptor, formulário de solicitação, ligação entre campo e mensagem de erro, também num po-input real, e aviso de sessão).
+Testes: cada um parte de uma regra do sistema, não de uma linha de código. São 39 testes da API contra PostgreSQL real (abrir, listar e filtrar, quem pode ver, editar e excluir, fluxo de status com histórico, responsável, dois pedidos simultâneos, login, sessão, limite de tentativas, painel, regras do banco) 19 unitários das contas que não precisam de banco (as nove combinações de transição de status, o prazo em horas úteis e a senha) e 18 no frontend (formulário de solicitação, guards de rota, interceptor, aviso de sessão e ligação entre campo e mensagem de erro).
 
 ## 5. Regras de negócio e decisões sobre pontos em aberto do enunciado
 
@@ -222,7 +224,6 @@ Testes: 72 unitários no backend (permissões, as combinações de transição d
 | Painel | Oito números (total, um por status, fora do prazo, concluídas fora do prazo, tempo médio até o início, tempo médio até a conclusão), no escopo de quem vê; os cinco primeiros abrem a lista já filtrada | Colaborador vê os seus números; atendente, os de todos |
 | Categoria inexistente ou inativa | 400 apontando o campo `categoryId` | É erro de preenchimento, e o formulário consegue indicar o campo |
 | Filtro por período | Datas no fuso `APP_TIMEZONE` (padrão `America/Fortaleza`); o último dia entra inteiro | O banco guarda UTC; sem a conversão, uma solicitação aberta às 22h cairia no dia seguinte |
-| Paginação | A primeira página vai sem instante; a API usa o relógio dela, devolve o instante (`asOf`), e a tela o grava na URL. As páginas seguintes só mostram o que foi aberto até ele; filtrar ou limpar os filtros pede um novo | Uma solicitação aberta enquanto alguém pagina não empurra linhas de uma página para a outra |
 | Título | De 3 a 120 caracteres, contados como o banco conta (um emoji é um caractere) | Cabe numa linha da tabela e num assunto de e-mail |
 | Descrição | Até 2000 caracteres | Cerca de uma página de texto: basta para descrever um pedido sem virar documento |
 | Itens por página | 10 por padrão, no máximo 100 | Dez cabem na tela de um notebook sem rolagem; 100 é o teto para a API não devolver páginas enormes |
@@ -242,7 +243,7 @@ Testes: 72 unitários no backend (permissões, as combinações de transição d
 - Não há reabertura nem cancelamento: o enunciado define três status (Aberto, Em Atendimento, Concluído), e um quarto status ou uma volta no fluxo mudaria o que ele pede. O caso "não preciso mais" é coberto pela exclusão em Aberto; uma solicitação concluída por engano é aberta de novo.
 - O histórico registra só as mudanças de status: a edição de título, descrição ou categoria não fica registrada.
 - Sessões expiradas só são apagadas quando alguém tenta usá-las; sessões abandonadas ficam na tabela até uma limpeza manual (`DELETE FROM sessions WHERE expires_at < now()`, que usa o índice em `expires_at`).
-- A busca por título usa `ILIKE` sem índice próprio e a paginação é por deslocamento. Atende ao volume de um portal interno pequeno, não a centenas de milhares de registros.
+- A busca por título usa `ILIKE` sem índice próprio e a paginação é por deslocamento: uma solicitação aberta enquanto alguém pagina empurra as linhas para a página seguinte. Atende ao volume de um portal interno pequeno, não a centenas de milhares de registros.
 - Os testes do frontend cobrem guards, interceptor, formulário (inclusive o aviso de alterações não salvas), ligação campo–erro e aviso de sessão; as telas de lista, detalhe e painel não têm teste automatizado no repositório. Os roteiros de axe-core e de teclado que conferiram a acessibilidade não estão no repositório; leitor de tela não foi testado, e regra automática cobre só parte da WCAG.
 - O `po-toolbar` não tem lugar para mostrar o nome e o papel de quem entrou: eles aparecem no alto do menu do usuário, ao abri-lo, e não fixos na barra.
 - Nos cartões do painel, o título do `po-widget` é cortado quando o usuário força o espaçamento de texto da WCAG 1.4.12; não corrigi.
