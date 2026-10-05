@@ -12,10 +12,8 @@ import {
 
 const HOUR = 3_600_000;
 
-// Horário de Fortaleza (UTC-3, o APP_TIMEZONE dos testes) escrito com o offset. 28/09/2026 é
-// uma segunda-feira; 25/09/2026, uma sexta.
+// Fortaleza é UTC-3 (APP_TIMEZONE dos testes). 28/09/2026 é segunda; 25/09/2026, sexta.
 const at = (local: string) => new Date(`${local}-03:00`);
-// Prazo ainda por vencer quando o teste roda.
 const notDueYet = () => new Date(Date.now() + 22 * HOUR);
 
 describe('Dashboard (e2e)', () => {
@@ -35,9 +33,7 @@ describe('Dashboard (e2e)', () => {
     return response.body;
   };
 
-  // Grava a solicitação direto no banco, para controlar abertura, prazo, início e conclusão.
-  // Início e conclusão em horas corridas contadas da abertura; o painel responde em horas
-  // úteis (segunda a sexta, 08:00–18:00). Fora de Aberto, a carla é a responsável.
+  // Horas de início e conclusão corridas; o painel responde em úteis (seg a sex, 08:00-18:00).
   async function seedRequest(options: {
     requesterId: number;
     status: RequestStatus;
@@ -91,9 +87,6 @@ describe('Dashboard (e2e)', () => {
     carla = await createUser(app, 'carla', 'AGENT');
     categoryId = (await createCategory(app, 'TI', 24)).id;
 
-    // Ana, tudo aberto na segunda às 08:00: uma aberta com o prazo vencido, uma em atendimento
-    // no prazo (iniciada em 1 h) e uma concluída no prazo (iniciada em 4 h, concluída em 10 h,
-    // às 18:00; o prazo vencido depois da conclusão não conta como atraso).
     const monday = at('2026-09-28T08:00:00');
     await seedRequest({
       requesterId: ana.id,
@@ -116,9 +109,7 @@ describe('Dashboard (e2e)', () => {
       startedAfterHours: 4,
       doneAfterHours: 10,
     });
-    // Bruno: uma aberta no prazo e uma aberta na sexta às 17:00, iniciada na segunda às 09:00
-    // (64 h corridas, 2 h úteis) e concluída às 15:00 (70 h corridas, 8 h úteis), depois do
-    // prazo das 10:00.
+    // Bruno: iniciada às 09:00 (64 h corridas, 2 h úteis), concluída às 15:00 (70 h, 8 h úteis).
     await seedRequest({
       requesterId: bruno.id,
       status: 'OPEN',
@@ -147,7 +138,7 @@ describe('Dashboard (e2e)', () => {
       done: 1,
       overdue: 1,
       completedLate: 0,
-      // Média de 1 h e 4 h.
+      byCategory: [{ name: 'TI', total: 3 }],
       averageTimeToStartHours: 2.5,
       averageResolutionHours: 10,
     });
@@ -161,9 +152,9 @@ describe('Dashboard (e2e)', () => {
       done: 2,
       overdue: 1,
       completedLate: 1,
-      // Média de 1 h, 4 h e 2 h úteis (2,33), com uma casa.
+      byCategory: [{ name: 'TI', total: 5 }],
       averageTimeToStartHours: 2.3,
-      // Média de 10 h e 8 h úteis; em horas corridas daria 40 h.
+      // Em horas corridas daria 40 h.
       averageResolutionHours: 9,
     });
   });
@@ -178,6 +169,7 @@ describe('Dashboard (e2e)', () => {
       done: 0,
       overdue: 0,
       completedLate: 0,
+      byCategory: [],
       averageTimeToStartHours: null,
       averageResolutionHours: null,
     });
