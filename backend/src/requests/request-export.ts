@@ -27,9 +27,9 @@ const COLUMNS = [
   'Categoria',
   'Solicitante',
   'Responsável',
-  'Abertura',
+  'Data de abertura',
   'Prazo',
-  'Situação',
+  'Status',
   'Fora do prazo',
 ];
 

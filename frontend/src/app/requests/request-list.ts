@@ -157,15 +157,11 @@ export class RequestList {
     { property: 'code', label: 'Código', type: 'link', link: 'url', sortable: false },
     { property: 'title', label: 'Título', width: '30%', sortable: false },
     { property: 'category', label: 'Categoria', sortable: false },
-    ...(this.isAgent()
-      ? [
-          { property: 'requester', label: 'Solicitante', sortable: false },
-          { property: 'assignee', label: 'Responsável', sortable: false },
-        ]
-      : []),
+    { property: 'requester', label: 'Solicitante', sortable: false },
+    ...(this.isAgent() ? [{ property: 'assignee', label: 'Responsável', sortable: false }] : []),
     {
       property: 'createdAt',
-      label: 'Abertura',
+      label: 'Data de abertura',
       type: 'date',
       format: 'dd/MM/yyyy',
       sortable: false,
@@ -173,7 +169,7 @@ export class RequestList {
     { property: 'due', label: 'Prazo', type: 'columnTemplate', sortable: false },
     {
       property: 'status',
-      label: 'Situação',
+      label: 'Status',
       type: 'label',
       sortable: false,
       labels: REQUEST_STATUSES.map((status) => ({
