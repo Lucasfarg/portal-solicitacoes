@@ -26,14 +26,15 @@ Procurei a solução mais simples que atendesse ao enunciado inteiro. O que vai 
 | Log de acesso | morgan | 1.12 |
 | Documentação da API | Swagger (`@nestjs/swagger`) | 12.0 |
 | Frontend | Angular | 21.2 |
-| Componentes de interface | PO UI | 21.31 |
+| Componentes de interface | PO UI (`@po-ui/ng-components`) | 21.31 |
+| Template de login | PO UI Templates (`@po-ui/ng-templates`) | 21.31 |
 | Testes | Vitest, Supertest, Testcontainers | 4, 7, 12.2 |
 | Lint e formatação | Biome (API e `shared/`), angular-eslint e Prettier (frontend) | 2.5, 21.4, 3 |
 | Repositório | Workspace pnpm | 12 |
 | Execução | Docker Compose, nginx | — |
 | Integração contínua | GitHub Actions | — |
 
-São versões estáveis e com suporte na data da entrega. As dependências que escolhi à mão (Prisma, Zod, PO UI, Argon2, Helmet, Swagger) estão com a versão exata fixada no `package.json`.
+São versões estáveis e com suporte na data da entrega. As dependências que escolhi à mão (Prisma, Zod, PO UI, Argon2, Helmet, Swagger, Luxon, morgan) estão com a versão exata fixada no `package.json`.
 
 ## 3. Justificativa técnica
 
@@ -49,11 +50,11 @@ O enunciado avalia o uso de camadas, e o NestJS já organiza o código em módul
 
 ### PostgreSQL
 
-O enunciado pede banco SQL. O PostgreSQL é gratuito, tem imagem oficial para o Docker e oferece o que as consultas do painel usam (`COUNT(*) FILTER`, aritmética de datas com fuso). MySQL e SQL Server também atenderiam; escolhi o que consigo subir em qualquer máquina com um comando e sem licença.
+O enunciado pede banco SQL. O PostgreSQL é gratuito, tem imagem oficial para o Docker e oferece o que a modelagem usa (`CHECK`, `citext`, `timestamptz`). MySQL e SQL Server também atenderiam; escolhi o que consigo subir em qualquer máquina com um comando e sem licença.
 
 ### Prisma ORM
 
-O Prisma gera as migrações como arquivos `.sql` versionados, que são os scripts de criação pedidos na entrega, e gera os tipos das consultas a partir do schema, de modo que um nome de coluna errado é erro de compilação. Das alternativas, o TypeORM mistura o modelo de domínio com a persistência em decorators, e o Drizzle ainda não tinha versão 1.0 estável na data da escolha. Onde o ORM atrapalharia, usei SQL direto: a contagem do painel está escrita à mão em `dashboard.service.ts`, com parâmetros, porque é uma agregação que fica mais clara em SQL (`COUNT(*) FILTER`). Os tempos médios saem do histórico lido pelo Prisma e são calculados no TypeScript, porque contam horas úteis com a mesma função do prazo.
+O Prisma gera as migrações como arquivos `.sql` versionados, que são os scripts de criação pedidos na entrega, e gera os tipos das consultas a partir do schema, de modo que um nome de coluna errado é erro de compilação. Das alternativas, o TypeORM mistura o modelo de domínio com a persistência em decorators, e o Drizzle ainda não tinha versão 1.0 estável na data da escolha. Todo acesso ao banco passa pelas consultas tipadas do Prisma, inclusive as contagens do painel (`groupBy` por situação e contagem de solicitações por categoria); SQL escrito à mão só existe nas migrações, onde ficam os `CHECK`. Os tempos médios saem do histórico lido pelo Prisma e são calculados no TypeScript, porque contam horas úteis com a mesma função do prazo.
 
 ### Zod em um pacote compartilhado
 
@@ -73,9 +74,11 @@ O Angular é citado na descrição da vaga e é a base do PO UI. Ele traz roteam
 
 ### PO UI
 
-É a biblioteca de componentes da TOTVS. Para este projeto ela entrega a barra do topo e o menu, o cabeçalho e a trilha de navegação das telas, as tabelas, os campos de formulário, os botões, a janela de confirmação, os cartões do painel, as etiquetas de situação e os avisos, com o visual dos produtos TOTVS. O custo é o tamanho: o pacote inicial do frontend tem 3,4 MB (cerca de 650 kB transferidos), bem mais do que uma biblioteca menor exigiria.
+É a biblioteca de componentes da TOTVS. Para este projeto ela entrega a barra do topo e o menu, o cabeçalho e a trilha de navegação das telas, as tabelas, a tela de login (`po-page-login`, do pacote de templates), os campos de formulário, os botões, a janela de confirmação, os cartões do painel, as etiquetas de situação e os avisos, com o visual dos produtos TOTVS. O custo é o tamanho: o pacote inicial do frontend tem 3,6 MB (cerca de 700 kB transferidos), bem mais do que uma biblioteca menor exigiria.
 
-Todas as telas usam componentes do PO UI: `po-toolbar` e `po-menu` no layout, `po-page-default` (com `po-breadcrumb`) no cabeçalho, `po-table`, `po-modal` na confirmação, `po-login`, `po-password`, `po-datepicker` e `po-checkbox` nos campos. Onde a verificação de acessibilidade achou defeito num componente, corrigi por cima, com atributos ARIA e diretivas pequenas (`core/po-a11y.ts` e `core/field-a11y.ts`), sem trocar o componente nem escrever outro no lugar. O que não consegui consertar assim está na seção 6, em "Limitações". A lista dos ajustes está na seção 4, em "Acessibilidade".
+A identidade visual é do portal, aplicada sobre o tema do PO UI pelas variáveis CSS dele (`src/styles.scss`): paleta azul-petróleo no lugar do roxo padrão e a família IBM Plex Sans, servida pelo próprio app. Nenhum componente foi trocado por causa do visual.
+
+Todas as telas usam componentes do PO UI: `po-toolbar` e `po-menu` no layout, `po-page-default` (com `po-breadcrumb`) no cabeçalho, `po-table`, `po-modal` na confirmação, `po-datepicker` e `po-checkbox` nos campos, `po-chart` no painel, e `po-page-login` (de `@po-ui/ng-templates`) no login. Onde a verificação de acessibilidade achou defeito num componente, corrigi por cima, com atributos ARIA e diretivas pequenas (`core/po-a11y.ts` e `core/field-a11y.ts`), sem trocar o componente nem escrever outro no lugar. O que não consegui consertar assim está na seção 6, em "Limitações". A lista dos ajustes está na seção 4, em "Acessibilidade".
 
 ### Vitest, Supertest e Testcontainers
 
@@ -91,7 +94,7 @@ Um repositório com três pacotes (`shared`, `backend`, `frontend`) mantém o co
 
 ### Docker Compose e nginx
 
-O critério "executar sem adaptação" é atendido por um `compose.yaml` com três serviços e verificações de saúde: o banco sobe, a API aplica as migrações e o seed e só então a web fica disponível. O nginx serve os arquivos do frontend e encaminha `/api` para a API, o que põe tudo na mesma origem. Ele entrega os arquivos comprimidos (gzip): o bundle com o PO UI tem 3,5 MB e trafega com cerca de 680 kB. Os `.js` e `.css`, que levam um hash no nome, ficam um ano no cache do navegador, e o `index.html` é sempre conferido com o servidor. As portas são publicadas só em `127.0.0.1`, porque o compose serve em HTTP, e a API não publica porta nenhuma: só o nginx fala com ela. A verificação de saúde da API dá até dois minutos para as migrações e o seed da primeira subida, para uma máquina lenta não marcar a API como fora do ar. A imagem da API é construída em etapas: as dependências de desenvolvimento ficam na etapa de build, e a imagem final leva só o código compilado, as dependências de produção e as migrações.
+O critério "executar sem adaptação" é atendido por um `compose.yaml` com três serviços e verificações de saúde: o banco sobe, a API aplica as migrações e o seed e só então a web fica disponível. O nginx serve os arquivos do frontend e encaminha `/api` para a API, o que põe tudo na mesma origem. Ele entrega os arquivos comprimidos (gzip): o bundle com o PO UI tem 3,6 MB e trafega com cerca de 700 kB. Os `.js` e `.css`, que levam um hash no nome, ficam um ano no cache do navegador, e o `index.html` é sempre conferido com o servidor. As portas são publicadas só em `127.0.0.1`, porque o compose serve em HTTP, e a API não publica porta nenhuma: só o nginx fala com ela. A verificação de saúde da API dá até dois minutos para as migrações e o seed da primeira subida, para uma máquina lenta não marcar a API como fora do ar. A imagem da API é construída em etapas: as dependências de desenvolvimento ficam na etapa de build, e a imagem final leva só o código compilado, as dependências de produção e as migrações.
 
 ### GitHub Actions
 
@@ -126,12 +129,13 @@ No frontend, `core/` concentra o que é transversal (chamadas à API, sessão, i
 
 Referência: WCAG 2.2, nível AA. Conferência: o axe-core (regras automáticas) em cada tela e roteiros que percorrem as telas só com o teclado, nas larguras de 1366, 683 (zoom de 200%), 390 e 320 px. O que a conferência mudou no código:
 
-- **Estrutura**: a barra do topo é marcada como `banner` e o menu tem nome ("Menu principal"). O `po-page-default` desenha o título da tela como `h2`; ele recebe `aria-level="1"` para ser o título principal. Na primeira carga e a cada troca de tela o foco vai para esse título, que é também o título da aba, e há um atalho "Pular para o conteúdo".
+- **Estrutura**: a barra do topo é marcada como `banner` e o `po-menu` inteiro, com a marca dentro, é a região de navegação, com o nome "Menu principal". O `po-page-default` desenha o título da tela como `h2`; ele recebe `aria-level="1"` para ser o título principal. Na primeira carga e a cada troca de tela o foco vai para esse título, que é também o título da aba, e há um atalho "Pular para o conteúdo".
 - **Menu e Sair**: no `po-menu`, Enter e Espaço num item não navegavam (o componente cancela a tecla e só marca o item), o botão do menu no celular só respondia ao mouse e o menu fechado deixava paradas de Tab fora da tela. Agora os dois teclados navegam, o botão é um botão de verdade, o menu fechado fica inerte e o item da tela atual leva `aria-current`. O "Sair" fica no menu do usuário do `po-toolbar`, cujo ícone de perfil só respondia ao clique; agora o teclado o alcança.
-- **Diálogo de confirmação** sobre o `po-modal`, que prende o foco, fecha com Esc e devolve o foco ao botão que abriu. Ele não se apresentava como diálogo ao leitor de tela: o componente `core/confirm-dialog.ts` grava `role="dialog"`, `aria-modal` e a ligação com o título e a mensagem. O botão de confirmar diz a ação ("Iniciar atendimento", "Excluir"), não "Confirmar". O `po-modal` só leva o foco para dentro se já estiver desenhado; como o app agrupa eventos e desenha no quadro seguinte, forço o desenho antes de abrir.
+- **Diálogo de confirmação** sobre o `po-modal`, que devolve o foco ao botão que abriu. Ele deixava o Tab escapar para a página de trás e ignorava o Esc quando o foco saía; o componente `core/confirm-dialog.ts` traz o foco de volta e fecha com Esc em qualquer caso. O `po-modal` também não se apresentava como diálogo ao leitor de tela: o mesmo componente grava `role="dialog"`, `aria-modal` e a ligação com o título e a mensagem. O botão de confirmar diz a ação ("Iniciar atendimento", "Excluir"), não "Confirmar". O `po-modal` só leva o foco para dentro se já estiver desenhado; como o app agrupa eventos e desenha no quadro seguinte, forço o desenho antes de abrir.
+- **Login**: o `po-page-login` não tem região principal nem anuncia o erro de senha ao leitor de tela; a tela o envolve em `main` e repete a mensagem num aviso só para leitor de tela.
 - **Trilha de navegação**: no `po-breadcrumb` o item atual era uma parada de Tab sem função e tinha `aria-current` com o texto do item; agora o item é só texto e leva `aria-current="page"`.
-- **Tabelas**: a área do `po-table` que rola de lado não recebia foco nem tinha nome; agora é uma região nomeada, que o teclado alcança. O código da solicitação é um link.
-- **Campos**: no `po-datepicker` os seletores de mês e ano do calendário não tinham rótulo, e Enter no campo não enviava o filtro; agora têm "Mês" e "Ano" e o Enter envia. O `po-login` e o `po-password` não aceitam `autocomplete="username"` e `"current-password"`, e o olho de "mostrar senha" só respondia ao mouse; a diretiva grava o autocomplete e o olho virou um botão. O `po-checkbox` deixava `aria-checked` num elemento sem função, que a diretiva remove.
+- **Tabelas**: a área do `po-table` que rola de lado não recebia foco nem tinha nome; agora é uma região nomeada, que o teclado alcança. O código da solicitação é um link. O botão do `po-chart` que mostra os dados do gráfico em tabela era só um ícone; agora tem nome ("Ver os dados do gráfico em tabela").
+- **Campos**: no `po-datepicker` os seletores de mês e ano do calendário não tinham rótulo, e Enter no campo não enviava o filtro; agora têm "Mês" e "Ano" e o Enter envia. O `po-checkbox` deixava `aria-checked` num elemento sem função, que a diretiva remove.
 - **Erros de formulário**: cada campo aponta para a sua mensagem (`aria-describedby`, `aria-invalid`), e ao salvar com erro o foco vai para o primeiro campo inválido. Nos campos do PO UI essa ligação é feita por uma diretiva pequena (`core/field-a11y.ts`), porque o componente não a oferece.
 - **Sessão**: cinco minutos antes de expirar por falta de uso (ou na metade do tempo, numa sessão curta) aparece um aviso com "Continuar conectado", para ninguém perder o que estava digitando. A API informa em cada resposta, inclusive nas de erro, o tempo da sessão e quanto falta dele (cabeçalhos `X-Session-Idle-Minutes` e `X-Session-Remaining-Seconds`), então o aviso acompanha `SESSION_IDLE_MINUTES` e o fim real no servidor.
 - **Avisos** (confirmações e erros) ficam 15 segundos na tela, tempo para serem lidos ou ouvidos até o fim.
@@ -221,7 +225,7 @@ Testes: cada um parte de uma regra do sistema, não de uma linha de código. Sã
 | Fora do prazo | Não concluída e com o prazo vencido; tem cartão no painel e filtro na lista | Mostra o que pede ação agora. "Fora do prazo", e não "Atrasada", porque a etiqueta aparece ao lado de "Aberto" e "Em Atendimento", os nomes de status do enunciado |
 | Concluídas fora do prazo | Concluídas depois do prazo; cartão próprio no painel | Mede o prazo cumprido, que o cartão "Fora do prazo" deixa de contar quando a solicitação é concluída |
 | Tempos médios | Até o início (da abertura a Em Atendimento) e até a conclusão (da abertura a Concluído), em horas úteis, a mesma régua do prazo: aberta na sexta às 17h e iniciada na segunda às 9h esperou 2 h, não 64 h; a API devolve horas com uma casa decimal e a tela mostra "N h úteis" (sem converter em dias: 24 h úteis são mais de dois dias de expediente), ou "Sem dados" enquanto não há registros | Separam a espera pela primeira resposta do tempo total, e saem do histórico, sem dado novo |
-| Painel | Oito números (total, um por status, fora do prazo, concluídas fora do prazo, tempo médio até o início, tempo médio até a conclusão), no escopo de quem vê; os cinco primeiros abrem a lista já filtrada | Colaborador vê os seus números; atendente, os de todos |
+| Painel | Oito números (total, um por status, fora do prazo, concluídas fora do prazo, tempo médio até o início, tempo médio até a conclusão) e dois gráficos (`po-chart`): solicitações por situação e por categoria. Tudo no escopo de quem vê; os cartões de situação e o de fora do prazo abrem a lista já filtrada | Colaborador vê os seus números; atendente, os de todos |
 | Categoria inexistente ou inativa | 400 apontando o campo `categoryId` | É erro de preenchimento, e o formulário consegue indicar o campo |
 | Filtro por período | Datas no fuso `APP_TIMEZONE` (padrão `America/Fortaleza`); o último dia entra inteiro | O banco guarda UTC; sem a conversão, uma solicitação aberta às 22h cairia no dia seguinte |
 | Título | De 3 a 120 caracteres, contados como o banco conta (um emoji é um caractere) | Cabe numa linha da tabela e num assunto de e-mail |
@@ -252,7 +256,7 @@ Testes: cada um parte de uma regra do sistema, não de uma linha de código. Sã
 
 ### Pontos em aberto
 
-- **Ajustes de acessibilidade por cima do PO UI.** As diretivas de `core/po-a11y.ts` procuram elementos pelas classes internas dos componentes (`po-menu-nav`, `po-page-header-title`, `po-toolbar-profile` e outras). Numa atualização da biblioteca essas classes podem mudar e o ajuste deixa de valer sem erro de compilação; o roteiro de acessibilidade, que não está no repositório, é o que acusaria. Vale rodá-lo a cada atualização do PO UI.
+- **Ajustes de acessibilidade por cima do PO UI.** As diretivas de `core/po-a11y.ts` procuram elementos pelas classes internas dos componentes (`po-menu-item-link`, `po-page-header-title`, `po-toolbar-profile` e outras). Numa atualização da biblioteca essas classes podem mudar e o ajuste deixa de valer sem erro de compilação; o roteiro de acessibilidade, que não está no repositório, é o que acusaria. Vale rodá-lo a cada atualização do PO UI.
 
 ### Melhorias futuras
 
@@ -261,7 +265,7 @@ Testes: cada um parte de uma regra do sistema, não de uma linha de código. Sã
 - Calendário de feriados e expediente configurável no cálculo do prazo.
 - Telas de administração de categorias e usuários.
 - Trilha de auditoria das edições, não só do status.
-- Exportação da lista e gráficos por categoria e período no painel.
+- Exportação da lista e gráficos por período no painel.
 - Testes de tela e de acessibilidade automatizados no repositório.
 
 ### Requisitos que poderiam ser aperfeiçoados
