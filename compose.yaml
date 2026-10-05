@@ -5,8 +5,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-portal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portal}
       POSTGRES_DB: ${POSTGRES_DB:-portal}
+    # Só nesta máquina (127.0.0.1): o compose serve em HTTP, então nada dele fica exposto à rede.
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       # No PostgreSQL 18 os dados ficam em /var/lib/postgresql/18/docker;
       # o volume é montado no diretório pai, não mais em .../data.
@@ -24,6 +25,16 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-portal}:${POSTGRES_PASSWORD:-portal}@db:5432/${POSTGRES_DB:-portal}
       PORT: 3000
+      # Configuração da API vinda do .env da raiz (o compose lê o .env sozinho para estas
+      # substituições); sem valor no .env, valem os padrões da própria API.
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Fortaleza}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
+      SESSION_ABSOLUTE_HOURS: ${SESSION_ABSOLUTE_HOURS:-8}
+      HTTPS_ONLY: ${HTTPS_ONLY:-false}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      # A API não publica porta: só o nginx (web), na rede interna do compose, fala com ela.
+      # Por isso o X-Forwarded-For vindo dessa rede é aceito.
+      TRUST_PROXY: uniquelocal
     depends_on:
       db:
         condition: service_healthy
@@ -36,13 +47,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      # Na primeira subida a API aplica as migrações e o seed antes de ouvir: falhas nesse
+      # intervalo não contam, para uma máquina lenta não marcar a API como "unhealthy".
+      start_period: 120s
 
   web:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    # Só nesta máquina: em HTTP, o cookie de sessão não pode trafegar pela rede.
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
     depends_on:
       api:
         condition: service_healthy
