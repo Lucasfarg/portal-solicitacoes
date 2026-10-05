@@ -1,8 +1,7 @@
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
-  // Explícito para o client sair igual em qualquer ambiente: sem isso o gerador
-  // deduz o formato do tsconfig, que ainda não existe na etapa de install do Docker.
+  // Explícito: sem isso o gerador deduz o formato do tsconfig, que não existe no install do Docker.
   moduleFormat        = "esm"
   importFileExtension = "js"
 }
@@ -29,16 +28,15 @@ enum RequestStatus {
 model User {
   id           Int      @id @default(autoincrement())
   name         String   @db.VarChar(120)
-  // citext: o banco compara sem diferenciar maiúsculas ("Ana" e "ana" são o mesmo login).
+  // citext: "Ana" e "ana" são o mesmo login.
   username     String   @unique @db.Citext
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         UserRole @default(REQUESTER)
-  // Quem sai da empresa é desativado, não apagado: as solicitações e o histórico ficam.
+  // Desativado em vez de apagado: as solicitações e o histórico ficam.
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   sessions         Session[]
-  // Duas relações com Request: as que a pessoa abriu e as que ela atende.
   requests         Request[]              @relation("RequestRequester")
   assignedRequests Request[]              @relation("RequestAssignee")
   statusChanges    RequestStatusHistory[]
@@ -48,29 +46,24 @@ model User {
 
 model Session {
   id         Int      @id @default(autoincrement())
-  // SHA-256 (hex) do token opaco; o token em si só existe no cookie.
+  // SHA-256 do token; o token em si só existe no cookie.
   tokenHash  String   @unique @map("token_hash") @db.Char(64)
   userId     Int      @map("user_id")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  // Base do timeout por inatividade.
   lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
-  // Limite absoluto da sessão.
   expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  // Para a limpeza das sessões vencidas.
   @@index([expiresAt])
   @@map("sessions")
 }
 
 model Category {
   id       Int     @id @default(autoincrement()) @db.SmallInt
-  // citext: "TI" e "ti" não podem coexistir.
   name     String  @unique @db.Citext
   active   Boolean @default(true)
-  // Prazo de atendimento, em horas, das solicitações desta categoria.
   slaHours Int     @map("sla_hours") @db.SmallInt
 
   requests Request[]
@@ -84,14 +77,14 @@ model Request {
   description String
   categoryId  Int           @map("category_id") @db.SmallInt
   requesterId Int           @map("requester_id")
-  // Atendente que iniciou o atendimento; nulo só em Aberto (CHECK no banco).
+  // Nulo só em Aberto (CHECK no banco).
   assigneeId  Int?          @map("assignee_id")
   status      RequestStatus @default(OPEN)
-  // Prazo calculado na abertura: sla_hours da categoria contadas em horas úteis.
+  // Calculado na abertura, em horas úteis.
   dueAt       DateTime      @map("due_at") @db.Timestamptz(3)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
-  // Exclusão lógica: preenchido quando o dono exclui; a linha e o histórico ficam.
+  // Exclusão lógica: a linha e o histórico ficam.
   deletedAt   DateTime?     @map("deleted_at") @db.Timestamptz(3)
 
   category  Category               @relation(fields: [categoryId], references: [id])
@@ -99,15 +92,11 @@ model Request {
   assignee  User?                  @relation("RequestAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   history   RequestStatusHistory[]
 
-  // Lista do colaborador: WHERE requester_id = ? ORDER BY created_at DESC.
   @@index([requesterId, createdAt(sort: Desc)])
-  // Lista do atendente, ordenada pela abertura, e filtro por período.
   @@index([createdAt(sort: Desc)])
-  // Fora do prazo (painel e filtro): status <> 'DONE' AND due_at < agora.
   @@index([status, dueAt])
-  // Chave estrangeira: conferência do RESTRICT e filtro por categoria.
   @@index([categoryId])
-  // Chave estrangeira: sem índice, apagar um usuário varreria requests para conferir o RESTRICT.
+  // Sem índice, apagar um usuário varreria requests para conferir o RESTRICT.
   @@index([assigneeId])
   @@map("requests")
 }
@@ -115,7 +104,6 @@ model Request {
 model RequestStatusHistory {
   id          Int            @id @default(autoincrement())
   requestId   Int            @map("request_id")
-  // Nulo no registro de abertura.
   fromStatus  RequestStatus? @map("from_status")
   toStatus    RequestStatus  @map("to_status")
   changedById Int            @map("changed_by")
@@ -128,19 +116,15 @@ model RequestStatusHistory {
   @@map("request_status_history")
 }
 
-// Logins que erraram no último minuto, para o limite de tentativas (auth/login-throttle.ts).
-// No banco, e não na memória, para valer com várias instâncias da API e depois de um reinício.
+// No banco, e não na memória, para valer com várias instâncias da API e após reinício.
 model LoginFailure {
   id       Int      @id @default(autoincrement())
-  // Texto do IP; 45 caracteres cabem o IPv6 mais longo.
   ip       String   @db.VarChar(45)
-  // O login tentado, exista ou não; citext para "Ana" e "ana" contarem juntos.
+  // Exista ou não o usuário.
   username String   @db.Citext
   failedAt DateTime @map("failed_at") @db.Timestamptz(3)
 
-  // Erros do mesmo usuário vindos do mesmo IP no último minuto.
   @@index([username, ip, failedAt])
-  // Erros do mesmo IP somando todos os usuários.
   @@index([ip, failedAt])
   @@map("login_failures")
 }

@@ -11,10 +11,8 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 
 export const PASSWORD = 'Senha@123';
 
-// Cabeçalho que a defesa CSRF exige em todo método que altera estado.
 export const CSRF = { [CSRF_HEADER]: CSRF_HEADER_VALUE };
 
-// A aplicação inteira, configurada como em produção, contra o PostgreSQL do Testcontainers.
 export async function createTestApp(): Promise<NestExpressApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>(new PortalExpressAdapter());
@@ -48,8 +46,7 @@ export async function createCategory(
   return app.get(PrismaService).category.create({ data: { name, slaHours, active } });
 }
 
-// Cria a sessão direto no serviço e devolve o cabeçalho Cookie pronto,
-// para os testes que não são sobre o login não gastarem o limite de tentativas.
+// Cria a sessão direto, para não gastar o limite de tentativas de login.
 export async function sessionCookieFor(app: NestExpressApplication, userId: number) {
   const token = await app.get(SessionService).create(userId);
   return { token, cookie: `${app.get(SessionCookie).name}=${token}` };

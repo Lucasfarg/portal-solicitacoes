@@ -5,8 +5,7 @@ import { LoginThrottle } from './login-throttle.js';
 import { verifyPassword } from './password.js';
 import { SessionService } from './session.service.js';
 
-// Hash Argon2id de uma senha aleatória descartada. Quando o usuário não existe, a senha
-// é conferida contra ele: o tempo de resposta não revela quais logins estão cadastrados.
+// Conferido quando o usuário não existe, para o tempo de resposta não revelar quais logins existem.
 const DUMMY_HASH =
   '$argon2id$v=19$m=19456,p=1,t=2$fW9yjSHVdVW9DkfjiqkrmA$ZC7BzxOmFNDGMZpy5nFFPqI1oj7B2xOHoh1SdRW30g4';
 
@@ -29,15 +28,13 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({ where: { username } });
     const passwordMatches = await verifyPassword(user?.passwordHash ?? DUMMY_HASH, password);
-    // Usuário desativado recebe a mesma resposta: a tela não revela quem existe.
+    // Desativado recebe a mesma resposta: a tela não revela quem existe.
     if (!user?.active || !passwordMatches) {
-      // Fica no log o login tentado e o IP, nunca a senha.
       this.logger.warn(`Login recusado para "${username}" a partir de ${ip}`);
       throw new UnauthorizedException('Usuário ou senha inválidos');
     }
     await this.throttle.succeed(ip, username);
 
-    // Token novo a cada login: nenhuma sessão anterior ao login é reaproveitada.
     const token = await this.sessions.create(user.id);
     return {
       token,

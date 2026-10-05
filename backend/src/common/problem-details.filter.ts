@@ -22,11 +22,7 @@ function detailOf(exception: HttpException): string {
   return Array.isArray(message) ? message.join('; ') : (message ?? exception.message);
 }
 
-// Erros que não nascem no nosso código, traduzidos para uma resposta em português:
-// - o registro sumiu entre a leitura e a gravação (P2025) ou o valor já existe (P2002);
-// - rota inexistente, que o Nest responde em inglês;
-// - corpo grande demais, recusado pelo body-parser.
-// O JSON malformado já chega traduzido (MalformedRequestException, em http-adapter.ts).
+// Traduz erros de fora do nosso código (Prisma, rota inexistente, corpo grande) para português.
 function knownError(
   exception: unknown,
   request: Request,
@@ -40,8 +36,7 @@ function knownError(
     }
     return null;
   }
-  // O Nest responde rota inexistente com esta mensagem exata (routes-resolver.js); nenhuma
-  // rota nossa lança um 404 com esse texto.
+  // Mensagem exata do Nest para rota inexistente; nenhuma rota nossa lança 404 com esse texto.
   if (
     exception instanceof NotFoundException &&
     detailOf(exception) === `Cannot ${request.method} ${request.originalUrl}`
@@ -58,7 +53,6 @@ function knownError(
   return null;
 }
 
-// Todo erro da API sai no formato da RFC 9457 (application/problem+json).
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
   private readonly logger = new Logger(ProblemDetailsFilter.name);
@@ -73,7 +67,6 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const status =
       known?.status ?? (isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR);
 
-    // Erro não previsto: o detalhe fica no log, não na resposta.
     if (!known && !isHttp) {
       this.logger.error(exception instanceof Error ? exception.stack : exception);
     }

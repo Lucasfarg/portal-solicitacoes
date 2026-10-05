@@ -5,10 +5,8 @@ import { DEFAULT_TIMEZONE } from './config/env.js';
 import { PrismaClient } from './generated/prisma/client.js';
 import { dueDate } from './requests/request-rules.js';
 
-// Dados de demonstração. Idempotente: roda a cada subida do container sem duplicar
-// nem sobrescrever o que já existe (upsert sem alteração).
+// Idempotente: roda a cada subida do container sem duplicar nem sobrescrever.
 
-// Local: usa o .env da raiz do repo. No Docker a variável já vem do ambiente.
 try {
   process.loadEnvFile(new URL('../../.env', import.meta.url));
 } catch {}
@@ -29,11 +27,7 @@ const USERS = [
   { name: 'Carla Mendes', username: 'carla', role: 'AGENT' },
 ] as const;
 
-// Solicitações de exemplo, com as datas contadas a partir da hora do seed: há casos no
-// prazo, fora do prazo, em atendimento e concluídos. Quem atende é sempre a carla.
-// O prazo conta horas úteis e o dia do seed varia: as "no prazo" foram abertas há menos horas
-// que o SLA (o tempo útil nunca passa do corrido), e as "fora do prazo" há mais que o pior
-// caso de calendário (abertura numa sexta à noite, fim de semana no meio).
+// Datas contadas da hora do seed. As "no prazo" foram abertas há menos horas que o SLA e as "fora do prazo" há mais que o pior caso de calendário.
 interface SampleRequest {
   title: string;
   description: string;
@@ -72,7 +66,7 @@ const SAMPLE_REQUESTS: SampleRequest[] = [
     description: 'Preciso de leitura na pasta \\\\arquivos\\financeiro\\2026 para o fechamento.',
     category: 'TI',
     requester: 'bruno',
-    // Fora do prazo: 24 h úteis levam no máximo umas 114 h corridas.
+    // 24 h úteis levam no máximo umas 114 h corridas.
     openedHoursAgo: 130,
   },
   {
@@ -87,7 +81,7 @@ const SAMPLE_REQUESTS: SampleRequest[] = [
     description: 'O aparelho pinga sobre a mesa de reunião desde segunda.',
     category: 'Infraestrutura',
     requester: 'bruno',
-    // Em atendimento e fora do prazo: 48 h úteis levam no máximo umas 166 h corridas.
+    // 48 h úteis levam no máximo umas 166 h corridas.
     openedHoursAgo: 180,
     startedHoursAgo: 170,
   },
@@ -122,7 +116,7 @@ const SAMPLE_REQUESTS: SampleRequest[] = [
     description: 'Declaração para apresentar no banco, com cargo e data de admissão.',
     category: 'RH',
     requester: 'ana',
-    // Concluída com atraso: 300 h corridas passam das 72 h úteis em qualquer dia da semana.
+    // 300 h corridas passam das 72 h úteis em qualquer dia da semana.
     openedHoursAgo: 400,
     startedHoursAgo: 380,
     doneHoursAgo: 100,
@@ -158,7 +152,6 @@ try {
     });
   }
 
-  // Só num banco sem nenhuma solicitação: o que já foi criado ou mexido não é tocado.
   let created = 0;
   if ((await prisma.request.count()) === 0) {
     const categories = new Map((await prisma.category.findMany()).map((c) => [c.name, c]));
@@ -201,7 +194,6 @@ try {
           description: sample.description,
           categoryId: category.id,
           requesterId,
-          // Quem iniciou o atendimento é o responsável; em Aberto não há (CHECK no banco).
           assigneeId: sample.startedHoursAgo === undefined ? null : agentId,
           status: history[history.length - 1].toStatus,
           createdAt: openedAt,

@@ -2,7 +2,6 @@ import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { SessionCookie } from './auth/session-cookie.js';
 
-// Documentação interativa em /api/docs, gerada dos mesmos schemas Zod que validam a API.
 export function setupSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
     .setTitle('Portal de Solicitações Internas')
@@ -15,7 +14,7 @@ export function setupSwagger(app: INestApplication) {
 
   SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, config), {
     swaggerOptions: {
-      // Esta função roda no navegador: acrescenta o cabeçalho que a defesa CSRF da API exige.
+      // Roda no navegador: acrescenta o cabeçalho que a defesa CSRF exige.
       requestInterceptor: (request: { headers: Record<string, string> }) => {
         request.headers['X-Requested-With'] = 'XMLHttpRequest';
         return request;

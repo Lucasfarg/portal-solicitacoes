@@ -53,20 +53,18 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthUser> {
     const { token, user } = await this.auth.login(body, request.ip ?? 'desconhecido');
-    // Quem entra de novo no mesmo navegador não deixa a sessão anterior viva no banco.
+    // Revoga a sessão anterior do mesmo navegador.
     const previous = this.cookie.read(request);
     if (previous) {
       await this.sessions.revoke(previous);
     }
     this.cookie.set(response, token, this.sessions.absoluteMs);
-    // Sessão nova: o tempo inteiro pela frente (o AuthGuard informa o mesmo nas demais rotas).
     response.setHeader(SESSION_IDLE_HEADER, String(this.sessions.idleMs / 60_000));
     response.setHeader(SESSION_REMAINING_HEADER, String(this.sessions.idleMs / 1000));
     return user;
   }
 
-  // Pública: quem clica em Sair com a sessão já vencida também sai (204), e o cookie é limpo.
-  // A defesa CSRF continua valendo: outro site não consegue derrubar a sessão de ninguém.
+  // Pública: com a sessão já vencida o Sair ainda responde 204 e limpa o cookie.
   @Public()
   @Post('logout')
   @HttpCode(204)

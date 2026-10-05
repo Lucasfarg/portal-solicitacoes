@@ -9,9 +9,7 @@ import type { Request } from 'express';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-// Defesa CSRF por cabeçalho customizado (OWASP CSRF Prevention Cheat Sheet): o navegador
-// não deixa outro site enviar X-Requested-With sem passar por CORS, que a API não libera.
-// SameSite=Strict no cookie continua valendo como segunda camada.
+// Cabeçalho customizado (OWASP): outro site não o envia sem passar por CORS, que a API não libera.
 @Injectable()
 export class CsrfGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
