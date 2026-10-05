@@ -20,7 +20,6 @@ describe('Guards de rota', () => {
   let http: HttpTestingController;
   let router: Router;
 
-  // Executa o guard como o roteador faria, para a URL pedida.
   function run(guard: CanActivateFn, url: string): Promise<GuardResult> {
     const result = TestBed.runInInjectionContext(() =>
       guard({} as ActivatedRouteSnapshot, { url } as RouterStateSnapshot),

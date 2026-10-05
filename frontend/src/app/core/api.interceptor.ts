@@ -17,14 +17,8 @@ import { SessionTimer } from './session-timer';
 // No login o 401 é "senha errada" e em /auth/me é "ainda não entrou": a própria tela trata.
 const AUTH_ROUTES = ['/api/auth/login', '/api/auth/me'];
 
-// Passa por toda chamada à API:
-// 1. acrescenta o cabeçalho que a defesa CSRF do servidor exige;
-// 2. a cada resposta, recomeça a contagem do aviso de sessão perto de expirar, com os
-//    minutos de sessão e o que falta deles, informados pela API nos cabeçalhos
-//    SESSION_IDLE_HEADER e SESSION_REMAINING_HEADER. Vale também para respostas de erro
-//    (409, 404…): a API renovou a sessão do mesmo jeito;
-// 3. se a sessão expirou (401), limpa o usuário, avisa uma vez e leva ao login, guardando
-//    para onde voltar.
+// Acrescenta o cabeçalho de CSRF, reinicia o timer de sessão a cada resposta (inclusive de
+// erro, pois a API renova a sessão do mesmo jeito) e trata o 401.
 export const apiInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionTimer);
 
@@ -41,9 +35,8 @@ export const apiInterceptor: HttpInterceptorFn = (request, next) => {
         restartFrom(session, error.headers);
       }
       if (error.status === 401 && !AUTH_ROUTES.includes(request.url)) {
-        // Uma tela pode ter várias chamadas em andamento: só a primeira avisa e redireciona.
         session.expire();
-        // A tela que fez a chamada não recebe o erro: mostraria um segundo aviso à toa.
+        // A tela não recebe o erro, para não mostrar um segundo aviso.
         return EMPTY;
       }
       return throwError(() => error);
@@ -51,7 +44,6 @@ export const apiInterceptor: HttpInterceptorFn = (request, next) => {
   );
 };
 
-// Sem os cabeçalhos (ou com um valor que não é número), o timer usa o padrão.
 function restartFrom(session: SessionTimer, headers: HttpHeaders): void {
   const minutes = Number(headers.get(SESSION_IDLE_HEADER));
   const seconds = Number(headers.get(SESSION_REMAINING_HEADER));

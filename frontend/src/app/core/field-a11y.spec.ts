@@ -29,7 +29,6 @@ class Host {
   });
 }
 
-// Um po-input de verdade: a diretiva depende do <input> que o PO UI renderiza por dentro.
 @Component({
   imports: [ReactiveFormsModule, PoFieldModule, FieldA11y, FieldError],
   template: `
@@ -49,7 +48,6 @@ describe('FieldA11y', () => {
   beforeEach(() => {
     fixture = TestBed.createComponent(Host);
     element = fixture.nativeElement as HTMLElement;
-    // O foco só funciona com o elemento dentro do documento.
     document.body.append(element);
     fixture.detectChanges();
   });
@@ -59,7 +57,6 @@ describe('FieldA11y', () => {
   it('marca o campo como inválido depois de tocado, junto com a mensagem', () => {
     fixture.componentInstance.form.markAllAsTouched();
     fixture.detectChanges();
-    // No app, cada evento termina num tick do Angular, que é quando a diretiva regrava os atributos.
     TestBed.tick();
 
     expect(name().getAttribute('aria-invalid')).toBe('true');
@@ -73,8 +70,6 @@ describe('FieldA11y', () => {
   });
 });
 
-// Se uma versão nova do PO UI mudar o HTML de dentro do po-input, este teste quebra antes que
-// a ligação entre o campo e a mensagem de erro se perca em silêncio.
 describe('FieldA11y no po-input do PO UI', () => {
   it('grava aria-describedby e aria-invalid no <input> de dentro do componente', () => {
     const fixture = TestBed.createComponent(PoInputHost);

@@ -2,9 +2,34 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.kpi {
+  display: block;
+  height: 100%;
+}
+
 .kpi-value {
-  margin: 0 0 var(--spacing-xs);
-  font-size: 2.5rem;
-  font-weight: 700;
+  margin: 0;
+  font-family: var(--font-family-theme-bold);
+  font-size: 2.25rem;
   line-height: 1.2;
+  color: var(--color-brand-01-darker);
+}
+
+.kpi-help {
+  margin: 0 0 var(--spacing-xs);
+  min-height: 2.6em;
+  color: var(--color-neutral-dark-70);
+}
+
+.section-title {
+  margin: var(--spacing-sm) 0 var(--spacing-sm);
+  font-family: var(--font-family-theme-bold);
+  font-size: var(--font-size-default);
+  font-weight: normal;
+  color: var(--color-neutral-dark-80);
+}
+
+.empty {
+  display: block;
+  margin-bottom: var(--spacing-md);
 }

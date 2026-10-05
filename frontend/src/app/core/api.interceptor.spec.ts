@@ -48,7 +48,6 @@ describe('apiInterceptor', () => {
       .flush({ id: 1, name: 'Ana Souza', username: 'ana', role: 'REQUESTER' });
     expect(auth.user()).not.toBeNull();
 
-    // Duas chamadas da mesma tela em andamento quando a sessão acaba.
     const screenError = vi.fn();
     http.get('/api/requests').subscribe({ error: screenError });
     http.get('/api/categories').subscribe({ error: screenError });
@@ -59,7 +58,6 @@ describe('apiInterceptor', () => {
     expect(notification.warning).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/' } });
-    // A tela não recebe o erro: não há um segundo aviso.
     expect(screenError).not.toHaveBeenCalled();
   });
 

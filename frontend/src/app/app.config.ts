@@ -20,10 +20,8 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(withInterceptors([apiInterceptor])),
-    // Janelas de confirmação e avisos do PO UI usam as animações do Angular.
     provideAnimationsAsync(),
-    // Os avisos somem sozinhos; os 9 segundos padrão do PO UI são pouco para ler uma mensagem
-    // de erro mais longa (WCAG 2.2.1, tempo suficiente). Vale para todos os avisos do app.
+    // Os 9 segundos padrão do PO UI são pouco para ler um erro longo (WCAG 2.2.1).
     provideAppInitializer(() => inject(PoNotificationService).setDefaultDuration(15_000)),
   ],
 };

@@ -12,8 +12,7 @@ export class AuthService {
 
   readonly user = computed(() => this.state() ?? null);
 
-  // O cookie de sessão é HttpOnly, então o JavaScript não o enxerga.
-  // Para saber se há sessão, o front pergunta à API — uma vez; depois usa o que guardou.
+  // O cookie de sessão é HttpOnly: o front pergunta à API uma vez e guarda o resultado.
   loadUser(): Observable<AuthUser | null> {
     const known = this.state();
     if (known !== undefined) {
@@ -35,13 +34,11 @@ export class AuthService {
     return this.http.post<void>('/api/auth/logout', null).pipe(tap(() => this.state.set(null)));
   }
 
-  // Qualquer chamada autenticada renova a sessão no servidor; esta não faz mais nada.
-  // É a resposta ao aviso de sessão perto de expirar.
+  // Qualquer chamada autenticada renova a sessão no servidor.
   keepAlive(): Observable<AuthUser> {
     return this.http.get<AuthUser>('/api/auth/me');
   }
 
-  // Chamado pelo interceptor quando a API responde 401: a sessão acabou no servidor.
   clear(): void {
     this.state.set(null);
   }

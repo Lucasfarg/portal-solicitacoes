@@ -10,7 +10,13 @@
     [p-profile-actions]="profileActions"
   />
 
-  <po-menu appMenuA11y [p-menus]="menus()" />
+  <po-menu
+    appMenuA11y
+    p-logo="logo.svg"
+    p-short-logo="logo.svg"
+    p-logo-alt="Portal de Solicitações"
+    [p-menus]="menus()"
+  />
 
   <main id="conteudo" #main tabindex="-1">
     <router-outlet />

@@ -1,8 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import { PoButtonModule } from '@po-ui/ng-components';
 
-// O que a tela mostra enquanto os dados não chegam, ou quando a busca falhou: o texto de
-// carregando (anunciado pelo leitor de tela) ou o motivo da falha com "Tentar de novo".
 @Component({
   selector: 'app-load-state',
   imports: [PoButtonModule],

@@ -12,7 +12,6 @@ import {
 } from '@portal/shared';
 import { Observable } from 'rxjs';
 
-// Todas as chamadas à API de solicitações, com os tipos de shared/ (os mesmos da API).
 @Injectable({ providedIn: 'root' })
 export class PortalApi {
   private readonly http = inject(HttpClient);
@@ -22,7 +21,6 @@ export class PortalApi {
   }
 
   listRequests(query: Partial<ListRequestsQuery>): Observable<RequestPage> {
-    // Só vão para a query string os filtros preenchidos.
     const params: Record<string, string> = {};
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== '') {

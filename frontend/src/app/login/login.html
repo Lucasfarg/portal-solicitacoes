@@ -1,50 +1,20 @@
-<main class="login">
-  <form class="login-card" [formGroup]="form" (ngSubmit)="submit()">
-    <h1 class="po-font-title">Portal de Solicitações Internas</h1>
-    <p class="po-font-text">Entre com seu usuário e senha.</p>
-
-    <po-login
-      formControlName="username"
-      name="username"
-      p-label="Usuário"
-      appAutocomplete="username"
-      appErrorId="username-error"
-      [p-auto-focus]="true"
-      [p-no-autocomplete]="false"
-    />
-    <app-field-error id="username-error" [control]="form.controls.username" />
-
-    <po-password
-      appPasswordPeek
-      formControlName="password"
-      name="password"
-      p-label="Senha"
-      appAutocomplete="current-password"
-      appErrorId="password-error"
-      [p-no-autocomplete]="false"
-    />
-    <app-field-error id="password-error" [control]="form.controls.password" />
-
-    @if (failure(); as message) {
-      <p class="login-failure" role="alert">{{ message }}</p>
-    }
-
-    <!-- O botão não é desabilitado durante o envio: desabilitado ele perderia o foco. -->
-    <po-button
-      class="login-submit"
-      p-kind="primary"
-      [p-label]="loading() ? 'Entrando…' : 'Entrar'"
-      [p-type]="submitType"
-    />
-
-    <!-- Ambiente de demonstração: quem avalia entra sem precisar abrir o README. -->
-    <section class="demo" aria-labelledby="demo-title">
-      <h2 id="demo-title" class="demo-title">Usuários de demonstração</h2>
-      <p class="po-font-text-small">Senha de todos: <code>Senha&#64;123</code></p>
-      <ul class="po-font-text-small">
-        <li><code>ana</code> e <code>bruno</code>: colaboradores</li>
-        <li><code>carla</code>: atendente</li>
-      </ul>
-    </section>
-  </form>
+<main>
+  <po-page-login
+    p-product-name="Portal de Solicitações Internas"
+    p-environment="Demonstração"
+    p-logo="logo.svg"
+    p-background="login-bg.svg"
+    [p-hide-remember-user]="true"
+    [p-no-autocomplete-login]="false"
+    [p-no-autocomplete-password]="false"
+    [p-languages]="[]"
+    [p-literals]="literals"
+    [p-loading]="loading()"
+    [p-password-errors]="errors()"
+    (p-login-change)="failure.set(null)"
+    (p-password-change)="failure.set(null)"
+    (p-login-submit)="submit($event)"
+  />
+  <!-- O po-page-login mostra o erro embaixo da senha, mas não o anuncia ao leitor de tela. -->
+  <p class="login-failure" role="alert">{{ failure() }}</p>
 </main>
