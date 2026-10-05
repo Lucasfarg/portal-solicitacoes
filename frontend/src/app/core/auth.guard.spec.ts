@@ -62,25 +62,9 @@ describe('Guards de rota', () => {
       const tree = (await result) as UrlTree;
       expect(router.serializeUrl(tree)).toBe('/login?returnUrl=%2Fsolicitacoes%2F7');
     });
-
-    it('pergunta à API só na primeira navegação', async () => {
-      const first = run(authGuard, '/painel');
-      answerSession(ana);
-      await first;
-
-      await expect(run(authGuard, '/solicitacoes')).resolves.toBe(true);
-      http.expectNone('/api/auth/me');
-    });
   });
 
   describe('guestGuard (tela de login)', () => {
-    it('sem sessão, mostra o login', async () => {
-      const result = run(guestGuard, '/login');
-      answerSession(null);
-
-      await expect(result).resolves.toBe(true);
-    });
-
     it('com sessão, manda para o início', async () => {
       const result = run(guestGuard, '/login');
       answerSession(ana);

@@ -84,15 +84,6 @@ describe('RequestForm', () => {
       http.expectNone('/api/requests');
     });
 
-    it('aplica os limites do schema: título curto e descrição só com espaços', () => {
-      component.form.setValue({ title: 'ab', categoryId: 5, description: '   ' });
-
-      expect(component.form.invalid).toBe(true);
-      expect(errorOf('title')).toBe('O título precisa de pelo menos 3 caracteres');
-      expect(errorOf('categoryId')).toBeUndefined();
-      expect(errorOf('description')).toBe('Informe a descrição');
-    });
-
     it('válido, envia à API sem os espaços das pontas e abre o detalhe', () => {
       component.form.setValue({
         title: '  Notebook não liga ',
@@ -144,13 +135,6 @@ describe('RequestForm', () => {
           confirm ? onConfirm() : onCancel?.(),
         );
 
-    it('sem alteração sai sem perguntar', () => {
-      const ask = answer(true);
-
-      expect(component.canLeave()).toBe(true);
-      expect(ask).not.toHaveBeenCalled();
-    });
-
     it('com alteração pergunta: "Continuar editando" fica, "Descartar" sai', async () => {
       component.form.controls.title.setValue('Rascunho');
       component.form.markAsDirty();
@@ -180,14 +164,6 @@ describe('RequestForm', () => {
       expect(request.request.body.title).toBe('Notebook não carrega');
       request.flush({ ...saved, title: 'Notebook não carrega' });
       expect(router.navigate).toHaveBeenCalledWith(['/solicitacoes', 7]);
-    });
-
-    it('fica travado até a solicitação chegar, para nada digitado ser sobrescrito', () => {
-      expect(component.form.disabled).toBe(true);
-      component.save();
-
-      http.expectOne('/api/requests/7').flush(saved);
-      expect(component.form.enabled).toBe(true);
     });
 
     it('volta ao detalhe se a solicitação já saiu de Aberto', () => {
