@@ -49,6 +49,11 @@
   --color-secondary-dark-60-alpha-70: rgba(10, 51, 59, 0.7);
 }
 
+// O po-page-login tem a altura do conteúdo: em telas altas a imagem acabava antes do fim.
+.po-page-login-container {
+  min-height: 100vh;
+}
+
 // A marca no alto do menu: o tema estica a imagem na largura toda.
 .po-menu-logo,
 .po-menu-short-logo {
