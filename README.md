@@ -115,7 +115,7 @@ A API valida as variáveis ao subir e encerra com a lista das que estiverem erra
 
 ## API
 
-Todas as rotas ficam sob `/api` e exigem sessão, menos o login e a verificação de saúde. Os erros saem num formato só (RFC 9457, `application/problem+json`). Corpo, filtros e respostas de cada rota estão no Swagger.
+Todas as rotas ficam sob `/api` e exigem sessão, menos o login, a saída (logout) e a verificação de saúde. Os erros saem num formato só (RFC 9457, `application/problem+json`). Corpo, filtros e respostas de cada rota estão no Swagger.
 
 | Método e rota | O que faz |
 | --- | --- |
@@ -154,6 +154,20 @@ Na raiz do repositório, depois de `pnpm install`:
 | `pnpm build` | Build de produção dos três pacotes |
 
 O workflow `.github/workflows/ci.yml` executa os cinco, nessa ordem, a cada pull request e a cada push na `main`.
+
+## Evidências
+
+Telas capturadas com o projeto rodando pelo Docker Compose e os dados de exemplo. As 15 imagens estão em [`docs/evidencias/`](docs/evidencias).
+
+| Tela | Imagem |
+|---|---|
+| Login | ![Login](docs/evidencias/01-login.png) |
+| Painel do atendente | ![Painel do atendente](docs/evidencias/02-painel-atendente.png) |
+| Lista do atendente, com filtros | ![Lista do atendente](docs/evidencias/03-lista-atendente.png) |
+| Nova solicitação, com as mensagens de validação | ![Nova solicitação](docs/evidencias/05-nova-solicitacao-validacao.png) |
+| Detalhe com o histórico de status | ![Detalhe com histórico](docs/evidencias/06-detalhe-concluida-historico.png) |
+| Confirmação da mudança de status | ![Confirmação de status](docs/evidencias/08-confirmacao-de-status.png) |
+| Lista no celular | ![Lista no celular](docs/evidencias/09-lista-celular.png) |
 
 ## Estrutura do projeto
 
